@@ -1,0 +1,25 @@
+[Unit]
+Description=Donation Tracker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=donationtracker
+Group=donationtracker
+WorkingDirectory=/opt/donationtracker
+EnvironmentFile=-/etc/donationtracker.env
+ExecStart=/opt/donationtracker/.venv/bin/python -m uvicorn app.main:app \
+    --host 0.0.0.0 \
+    --port ${PORT}
+Restart=on-failure
+RestartSec=5
+# Hardening
+ProtectSystem=strict
+ReadWritePaths=/opt/donationtracker/data
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

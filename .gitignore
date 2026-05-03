@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Project data — stays on the host, never commit
+data/
+data_test/
+uploads/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Agent / scratch
+memory/
+MEMORY.md
+.claude/
+CLAUDE.local.md
+
+# Test artifacts (stray images at repo root)
+/*.jpg
+/*.jpeg
+/*.png
+/*.heic
+/*.zip
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini

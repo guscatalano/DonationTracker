@@ -1,0 +1,141 @@
+{
+  "_note": "Fair Market Value ranges in USD for common non-cash donation items, modeled on the Salvation Army and Goodwill valuation guides published per IRS Publication 561. Use 'good' condition median for the default. Assume good condition unless the LLM indicates otherwise.",
+  "_sources": {
+    "irs_pub_561": {
+      "title": "IRS Publication 561 — Determining the Value of Donated Property",
+      "url": "https://www.irs.gov/pub/irs-pdf/p561.pdf",
+      "html_url": "https://www.irs.gov/forms-pubs/about-publication-561",
+      "note": "Defines fair market value and the methods the IRS expects taxpayers to use for non-cash donations."
+    },
+    "irs_pub_526": {
+      "title": "IRS Publication 526 — Charitable Contributions",
+      "url": "https://www.irs.gov/pub/irs-pdf/p526.pdf",
+      "html_url": "https://www.irs.gov/forms-pubs/about-publication-526",
+      "note": "Rules for what is deductible, recordkeeping, the 'good used condition or better' rule for clothing/household items."
+    },
+    "irs_form_8283": {
+      "title": "IRS Form 8283 — Noncash Charitable Contributions",
+      "url": "https://www.irs.gov/pub/irs-pdf/f8283.pdf",
+      "instructions_url": "https://www.irs.gov/pub/irs-pdf/i8283.pdf",
+      "note": "Required when total non-cash deduction exceeds $500. Section A for items < $5,000; Section B + qualified appraisal for items > $5,000."
+    },
+    "salvation_army_guide": {
+      "title": "Salvation Army Donation Value Guide",
+      "url": "https://satruck.org/donation-value-guide",
+      "note": "Published valuation guide referenced by tax preparers as a Pub. 561 'comparable sales' source."
+    },
+    "goodwill_guide": {
+      "title": "Goodwill Industries Donation Valuation Guide",
+      "url": "https://www.amazinggoodwill.com/donating/IRS-guidelines",
+      "note": "Goodwill's published low/high ranges by item category."
+    }
+  },
+  "_methodology": "Each category here gives a low/median/high USD value. We picked these to fall within the published Salvation Army and Goodwill ranges for items in 'good used condition or better' (the IRS standard from Pub. 526 §A.2). Mapping: condition 'fair' → low, 'good' → median, 'excellent/like new' → high. Values are estimates, not guarantees; the taxpayer is responsible for the final FMV claimed.",
+  "categories": {
+    "clothing_mens_shirt":      {"label": "Men's shirt",            "low": 2,   "median": 6,   "high": 12},
+    "clothing_mens_pants":      {"label": "Men's pants",            "low": 4,   "median": 10,  "high": 20},
+    "clothing_mens_suit":       {"label": "Men's suit",             "low": 15,  "median": 50,  "high": 100},
+    "clothing_mens_jacket":     {"label": "Men's jacket/coat",      "low": 8,   "median": 25,  "high": 60},
+    "clothing_mens_shoes":      {"label": "Men's shoes",            "low": 4,   "median": 12,  "high": 25},
+    "clothing_womens_blouse":   {"label": "Women's blouse",         "low": 3,   "median": 8,   "high": 15},
+    "clothing_womens_dress":    {"label": "Women's dress",          "low": 6,   "median": 15,  "high": 35},
+    "clothing_womens_skirt":    {"label": "Women's skirt",          "low": 4,   "median": 10,  "high": 20},
+    "clothing_womens_pants":    {"label": "Women's pants",          "low": 4,   "median": 10,  "high": 20},
+    "clothing_womens_jacket":   {"label": "Women's jacket/coat",    "low": 8,   "median": 25,  "high": 60},
+    "clothing_womens_shoes":    {"label": "Women's shoes",          "low": 4,   "median": 12,  "high": 25},
+    "clothing_womens_handbag":  {"label": "Women's handbag",        "low": 3,   "median": 10,  "high": 30},
+    "clothing_childrens":       {"label": "Children's clothing item","low": 2,   "median": 5,   "high": 10},
+    "clothing_infant":          {"label": "Infant clothing item",   "low": 1,   "median": 3,   "high": 6},
+    "clothing_sweater":         {"label": "Sweater",                "low": 4,   "median": 10,  "high": 20},
+    "clothing_winter_coat":     {"label": "Winter coat",            "low": 15,  "median": 35,  "high": 75},
+
+    "linens_blanket":           {"label": "Blanket",                "low": 3,   "median": 8,   "high": 18},
+    "linens_sheets_set":        {"label": "Sheet set",              "low": 3,   "median": 7,   "high": 15},
+    "linens_towel":             {"label": "Towel",                  "low": 1,   "median": 3,   "high": 6},
+    "linens_curtains":          {"label": "Curtains (pair)",        "low": 5,   "median": 12,  "high": 25},
+    "linens_pillow":            {"label": "Pillow",                 "low": 1,   "median": 3,   "high": 8},
+
+    "kitchen_dishes_set":       {"label": "Dishes (place setting)", "low": 3,   "median": 8,   "high": 20},
+    "kitchen_glassware":        {"label": "Glassware (each)",       "low": 1,   "median": 2,   "high": 4},
+    "kitchen_cookware":         {"label": "Pots and pans (set)",    "low": 8,   "median": 20,  "high": 50},
+    "kitchen_small_appliance":  {"label": "Small kitchen appliance","low": 5,   "median": 15,  "high": 40},
+    "kitchen_coffee_maker":     {"label": "Coffee maker",           "low": 5,   "median": 15,  "high": 40},
+    "kitchen_microwave":        {"label": "Microwave",              "low": 10,  "median": 30,  "high": 75},
+
+    "furniture_sofa":           {"label": "Sofa",                   "low": 35,  "median": 100, "high": 250},
+    "furniture_loveseat":       {"label": "Loveseat",               "low": 25,  "median": 75,  "high": 175},
+    "furniture_armchair":       {"label": "Armchair",               "low": 15,  "median": 50,  "high": 125},
+    "furniture_dining_table":   {"label": "Dining table",           "low": 25,  "median": 75,  "high": 200},
+    "furniture_dining_chair":   {"label": "Dining chair",           "low": 5,   "median": 15,  "high": 35},
+    "furniture_coffee_table":   {"label": "Coffee table",           "low": 15,  "median": 35,  "high": 75},
+    "furniture_end_table":      {"label": "End table",              "low": 10,  "median": 25,  "high": 50},
+    "furniture_dresser":        {"label": "Dresser",                "low": 20,  "median": 60,  "high": 150},
+    "furniture_bed_frame":      {"label": "Bed frame",              "low": 25,  "median": 75,  "high": 175},
+    "furniture_mattress":       {"label": "Mattress",               "low": 20,  "median": 60,  "high": 150},
+    "furniture_desk":           {"label": "Desk",                   "low": 25,  "median": 50,  "high": 125},
+    "furniture_office_chair":   {"label": "Office chair",           "low": 10,  "median": 25,  "high": 60},
+    "furniture_bookshelf":      {"label": "Bookshelf",              "low": 10,  "median": 30,  "high": 75},
+    "furniture_lamp":           {"label": "Lamp",                   "low": 4,   "median": 12,  "high": 30},
+    "furniture_rug":            {"label": "Area rug",               "low": 15,  "median": 40,  "high": 100},
+
+    "electronics_tv_small":     {"label": "TV under 32\"",          "low": 25,  "median": 60,  "high": 125},
+    "electronics_tv_large":     {"label": "TV 32\" or larger",      "low": 50,  "median": 150, "high": 350},
+    "electronics_laptop":       {"label": "Laptop",                 "low": 50,  "median": 150, "high": 350},
+    "electronics_desktop":      {"label": "Desktop computer",       "low": 50,  "median": 125, "high": 300},
+    "electronics_monitor":      {"label": "Computer monitor",       "low": 15,  "median": 40,  "high": 100},
+    "electronics_printer":      {"label": "Printer",                "low": 10,  "median": 30,  "high": 75},
+    "electronics_radio":        {"label": "Radio",                  "low": 5,   "median": 12,  "high": 30},
+    "electronics_stereo":       {"label": "Stereo system",          "low": 15,  "median": 40,  "high": 100},
+    "electronics_phone":        {"label": "Mobile phone",           "low": 10,  "median": 50,  "high": 150},
+    "electronics_tablet":       {"label": "Tablet",                 "low": 25,  "median": 75,  "high": 200},
+    "electronics_game_console": {"label": "Game console",           "low": 20,  "median": 60,  "high": 150},
+
+    "appliance_washer":         {"label": "Washing machine",        "low": 50,  "median": 150, "high": 300},
+    "appliance_dryer":          {"label": "Clothes dryer",          "low": 40,  "median": 125, "high": 250},
+    "appliance_refrigerator":   {"label": "Refrigerator",           "low": 75,  "median": 200, "high": 500},
+    "appliance_stove":          {"label": "Stove/range",            "low": 50,  "median": 150, "high": 350},
+    "appliance_dishwasher":     {"label": "Dishwasher",             "low": 40,  "median": 100, "high": 250},
+    "appliance_vacuum":         {"label": "Vacuum cleaner",         "low": 10,  "median": 30,  "high": 75},
+    "appliance_air_conditioner":{"label": "Air conditioner",        "low": 25,  "median": 75,  "high": 175},
+    "appliance_heater":         {"label": "Space heater",           "low": 5,   "median": 15,  "high": 35},
+    "appliance_fan":            {"label": "Fan",                    "low": 4,   "median": 10,  "high": 25},
+
+    "media_book_hardcover":     {"label": "Hardcover book",         "low": 1,   "median": 3,   "high": 8},
+    "media_book_paperback":     {"label": "Paperback book",         "low": 1,   "median": 2,   "high": 5},
+    "media_textbook":           {"label": "Textbook",               "low": 3,   "median": 10,  "high": 30},
+    "media_dvd":                {"label": "DVD",                    "low": 1,   "median": 3,   "high": 6},
+    "media_cd":                 {"label": "CD",                     "low": 1,   "median": 2,   "high": 5},
+    "media_record_lp":          {"label": "Vinyl record (LP)",      "low": 1,   "median": 3,   "high": 10},
+    "media_video_game":         {"label": "Video game",             "low": 2,   "median": 6,   "high": 20},
+
+    "toys_stuffed":             {"label": "Stuffed animal",         "low": 1,   "median": 2,   "high": 5},
+    "toys_action_figure":       {"label": "Toy/action figure",      "low": 1,   "median": 3,   "high": 8},
+    "toys_board_game":          {"label": "Board game/puzzle",      "low": 2,   "median": 5,   "high": 12},
+    "toys_bicycle_kids":        {"label": "Children's bicycle",     "low": 10,  "median": 25,  "high": 60},
+    "toys_bicycle_adult":       {"label": "Adult bicycle",          "low": 25,  "median": 75,  "high": 200},
+
+    "sports_exercise_machine":  {"label": "Exercise equipment",     "low": 25,  "median": 75,  "high": 200},
+    "sports_golf_clubs":        {"label": "Golf clubs (set)",       "low": 25,  "median": 60,  "high": 175},
+    "sports_skis":              {"label": "Skis",                   "low": 15,  "median": 40,  "high": 100},
+    "sports_tennis_racket":     {"label": "Tennis racket",          "low": 5,   "median": 15,  "high": 35},
+
+    "tools_hand_tool":          {"label": "Hand tool",              "low": 1,   "median": 5,   "high": 15},
+    "tools_power_tool":         {"label": "Power tool",             "low": 10,  "median": 30,  "high": 80},
+    "tools_lawn_mower":         {"label": "Lawn mower",             "low": 25,  "median": 75,  "high": 200},
+
+    "decor_picture_frame":      {"label": "Picture/frame",          "low": 2,   "median": 6,   "high": 20},
+    "decor_mirror":             {"label": "Mirror",                 "low": 5,   "median": 15,  "high": 50},
+    "decor_vase":               {"label": "Vase/decorative item",   "low": 2,   "median": 6,   "high": 18},
+    "decor_clock":              {"label": "Clock",                  "low": 3,   "median": 10,  "high": 30},
+
+    "jewelry_costume":          {"label": "Costume jewelry piece",  "low": 1,   "median": 4,   "high": 12},
+    "jewelry_watch":            {"label": "Watch",                  "low": 5,   "median": 20,  "high": 75},
+
+    "baby_crib":                {"label": "Crib",                   "low": 25,  "median": 60,  "high": 150},
+    "baby_stroller":            {"label": "Stroller",               "low": 10,  "median": 35,  "high": 80},
+    "baby_high_chair":          {"label": "High chair",             "low": 10,  "median": 25,  "high": 60},
+    "baby_car_seat":            {"label": "Car seat",               "low": 10,  "median": 30,  "high": 75},
+
+    "other_misc":               {"label": "Miscellaneous item",     "low": 1,   "median": 5,   "high": 25}
+  }
+}

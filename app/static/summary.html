@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tax Year Summary</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+@media print {
+  .noprint { display: none !important; }
+  body { background: white; color: black; }
+  .doc { box-shadow: none; max-width: 100%; }
+  .charity-block { page-break-inside: avoid; }
+}
+.doc { background: white; color: #111; max-width: 880px; margin: 1.5rem auto;
+  padding: 1.5rem 2rem; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+.doc h1 { margin: 0; font-size: 1.6rem; }
+.doc h2 { margin-top: 2rem; font-size: 1.2rem; border-bottom: 2px solid #111; padding-bottom: .25rem; }
+.doc h3 { margin: 1.2rem 0 .25rem; font-size: 1rem; color: #333; }
+.doc table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+.doc th, .doc td { padding: .35rem .4rem; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
+.doc th { background: #f4f4f7; font-size: .8rem; }
+.doc td.num, .doc th.num { text-align: right; }
+.doc tfoot td { font-weight: bold; border-top: 2px solid #111; }
+.doc .small { color: #555; font-size: .85rem; }
+.doc .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; }
+.doc .grand { font-size: 1.4rem; font-weight: bold; color: #047857; }
+.doc .callout { background: #fef3c7; border-left: 4px solid #f59e0b; padding: .6rem .9rem;
+  margin: 1rem 0; border-radius: 4px; font-size: .9rem; color: #78350f; }
+.controls { max-width: 880px; margin: 1rem auto; display: flex; gap: .5rem;
+  align-items: center; padding: 0 1rem; flex-wrap: wrap; }
+.controls select, .controls button, .controls a {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  padding: .5rem .9rem; border-radius: 6px; text-decoration: none; font-size: 1rem; cursor: pointer; }
+.controls .primary { background: var(--accent); color: #0b1a25; border: none; font-weight: 600; }
+.cat-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0; }
+.cat-grid > div { padding: .25rem .4rem; border-bottom: 1px solid #eee; font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="controls noprint">
+  <a href="/">← Back</a>
+  <label>Tax year
+    <select id="yearSel"></select>
+  </label>
+  <button class="primary" onclick="window.print()">Print / Save as PDF</button>
+  <a href="/api/export" download>⬇ Export ZIP</a>
+</div>
+<div id="doc" class="doc">Loading…</div>
+
+<script>
+const fmt = n => "$" + (Number(n||0)).toFixed(2);
+function escape(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function shortDate(s){ if(!s) return ""; const d=new Date(s.replace(" ","T")+"Z"); return isNaN(d)?s:d.toLocaleDateString(); }
+
+const urlYear = parseInt(location.pathname.split("/").pop(), 10);
+const currentYear = new Date().getFullYear();
+
+async function init() {
+  const r = await fetch("/api/years");
+  const years = await r.json();
+  const set = new Set(years);
+  set.add(currentYear);
+  const sorted = [...set].sort((a,b) => b-a);
+  const sel = document.getElementById("yearSel");
+  sel.innerHTML = sorted.map(y => `<option value="${y}">${y}</option>`).join("");
+  const target = (!isNaN(urlYear) && set.has(urlYear)) ? urlYear : currentYear;
+  sel.value = target;
+  sel.addEventListener("change", () => render(parseInt(sel.value, 10)));
+  render(target);
+}
+
+async function render(year) {
+  history.replaceState(null, "", `/summary/${year}`);
+  const r = await fetch(`/api/summary/${year}`);
+  if (!r.ok) { document.getElementById("doc").textContent = "Failed to load."; return; }
+  const s = await r.json();
+
+  const charityBlocks = s.charities.map(g => {
+    const eventBlocks = g.events.map(ev => {
+      const rows = ev.items.map(i => {
+        const range = (i.fmv_low!=null && i.fmv_median!=null && i.fmv_high!=null)
+          ? `range ${fmt(i.fmv_low)}–${fmt(i.fmv_high)}, ${escape(i.condition||"good")} → ${fmt(i.estimated_value)}/unit`
+          : "";
+        return `
+        <tr>
+          <td><img class="thumb" src="${i.image_url}"></td>
+          <td>${escape(i.description || i.category_label || "Item")}<br>
+              <span class="small">${escape(i.category_label||"")} &middot; photo ${escape(shortDate(i.created_at))}<br>${range}</span></td>
+          <td class="num">${i.quantity}</td>
+          <td class="num">${fmt(i.estimated_value)}</td>
+          <td class="num">${fmt((i.estimated_value||0)*(i.quantity||1))}</td>
+        </tr>`;}).join("");
+      return `
+        <h3>Drop-off on ${escape(ev.donation_date)} &middot; ${ev.item_count} items &middot; ${fmt(ev.total_value)}</h3>
+        ${ev.notes ? `<p class="small">Notes: ${escape(ev.notes)}</p>` : ""}
+        <table>
+          <thead><tr><th></th><th>Description</th><th class="num">Qty</th><th class="num">FMV / unit</th><th class="num">Subtotal</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><td colspan="4" class="num">Drop-off total</td><td class="num">${fmt(ev.total_value)}</td></tr></tfoot>
+        </table>`;
+    }).join("");
+    return `
+      <section class="charity-block">
+        <h2>${escape(g.charity_name)}</h2>
+        <p class="small">
+          ${g.charity_address ? "Address: " + escape(g.charity_address) + "<br>" : ""}
+          ${g.events.length} drop-off${g.events.length===1?"":"s"} this tax year &middot;
+          ${g.item_count} items &middot;
+          <b>Charity total: ${fmt(g.total_value)}</b>
+        </p>
+        ${eventBlocks}
+      </section>`;
+  }).join("");
+
+  const catRows = s.category_totals.map(c => `
+    <div>${escape(c.category)}</div>
+    <div class="num" style="text-align:right">${c.qty}</div>
+    <div class="num" style="text-align:right">${fmt(c.value)}</div>`).join("");
+
+  const callouts = [];
+  if (s.form_8283_required) {
+    callouts.push(`Total non-cash donations exceed $500. <b>IRS Form 8283</b> must be filed with your return. Section A (items under $5,000 each) — this report has the data you need.`);
+  }
+  if (s.appraisal_required_threshold_hit) {
+    callouts.push(`At least one single item / similar-item group is valued over <b>$5,000</b>. A qualified appraisal and Form 8283 <b>Section B</b> are required for that item — this tool is not sufficient on its own for that case.`);
+  }
+  if (s.unassigned_in_year > 0) {
+    callouts.push(`<b>${s.unassigned_in_year}</b> item${s.unassigned_in_year===1?"":"s"} were photographed in ${year} but not assigned to a drop-off. They are not included in this total.`);
+  }
+
+  document.getElementById("doc").innerHTML = `
+    <h1>Non-Cash Charitable Donations &mdash; Tax Year ${year}</h1>
+    <p class="small">Prepared for personal tax records. Fair-market values are based on Goodwill / Salvation Army valuation guides per
+      <a href="https://www.irs.gov/pub/irs-pdf/p561.pdf" target="_blank">IRS Publication 561</a> and
+      <a href="https://www.irs.gov/pub/irs-pdf/p526.pdf" target="_blank">Publication 526</a>.
+      Items totaling more than $500 also require <a href="https://www.irs.gov/pub/irs-pdf/f8283.pdf" target="_blank">Form 8283</a>.
+      Full methodology and per-category ranges: <a href="/sources" target="_blank">/sources</a>.
+    </p>
+
+    <p>Total deductible value claimed for ${year}: <span class="grand">${fmt(s.grand_total)}</span><br>
+       ${s.grand_items} items across ${s.event_count} drop-off${s.event_count===1?"":"s"}.</p>
+
+    ${callouts.map(c => `<div class="callout">${c}</div>`).join("")}
+
+    <h2>Summary by category</h2>
+    <div class="cat-grid">
+      <div><b>Category</b></div><div class="num" style="text-align:right"><b>Qty</b></div><div class="num" style="text-align:right"><b>FMV</b></div>
+      ${catRows}
+    </div>
+
+    ${s.donor_totals && s.donor_totals.length ? `
+    <h2>Summary by donor</h2>
+    ${s.donor_totals.map(d => `
+      <h3>${escape(d.donor_name)} &middot; ${d.item_count} items &middot; <b>${fmt(d.total_value)}</b></h3>
+      <div class="cat-grid">
+        <div><b>Category</b></div><div class="num" style="text-align:right"><b>Qty</b></div><div class="num" style="text-align:right"><b>FMV</b></div>
+        ${d.by_category.map(c => `
+          <div>${escape(c.category)}</div>
+          <div class="num" style="text-align:right">${c.qty}</div>
+          <div class="num" style="text-align:right">${fmt(c.value)}</div>`).join("")}
+      </div>`).join("")}
+    ` : ""}
+
+    ${charityBlocks || `<p style="margin-top:2rem;color:#777">No drop-offs recorded for ${year}.</p>`}
+
+    <h2>Donor certification</h2>
+    <p class="small">I certify that the items listed above were donated in good used condition or better, in accordance with IRS Publication 526. No goods or services were received in exchange. The fair-market values are good-faith estimates based on the published valuation guides referenced above.</p>
+    <p>Donor signature: ____________________________________ &nbsp; Date: __________</p>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Donation Tracker</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Donations</h1>
+  <nav>
+    <button class="tab" data-view="capture">Add</button>
+    <button class="tab" data-view="items">Items</button>
+    <button class="tab" data-view="events">Drop-offs</button>
+    <button class="tab" data-view="donors">Donors</button>
+    <a class="tab" href="/summary">Tax year</a>
+    <a class="tab" href="/sources" title="Where the dollar amounts come from">FAQ</a>
+  </nav>
+</header>
+
+<main>
+  <!-- CAPTURE -->
+  <section id="view-capture" class="view">
+    <div class="donor-row">
+      <label>Donating as
+        <select id="defaultDonor"></select>
+      </label>
+      <span class="hint">Saved on this device only — each phone picks its own.</span>
+    </div>
+    <label class="capture-card">
+      <input id="captureInput" type="file" accept="image/*" capture="environment" multiple hidden>
+      <div class="capture-icon">+</div>
+      <div class="capture-text">Take photo / pick image(s)</div>
+      <div class="capture-sub">Snap as many as you want — descriptions fill in in the background.</div>
+    </label>
+    <div id="captureStatus" class="status hidden"></div>
+    <h3 id="recentHeading" class="hidden">Recent</h3>
+    <div id="recentList" class="card-grid"></div>
+  </section>
+
+  <!-- ITEMS -->
+  <section id="view-items" class="view hidden">
+    <div class="filter-row">
+      <label><input type="checkbox" id="onlyUnassigned"> Only unassigned</label>
+      <span id="itemsTotal" class="total-pill"></span>
+    </div>
+    <div id="itemList" class="card-grid"></div>
+  </section>
+
+  <!-- DONORS -->
+  <section id="view-donors" class="view hidden">
+    <p class="hint" style="margin-top:0">Donors let you tag who gave each item. Useful for shared households or family donations.</p>
+    <form id="donorForm" class="inline-form">
+      <input name="name" required placeholder="New donor name (e.g. Alice, Family)">
+      <button type="submit">Add</button>
+    </form>
+    <div id="donorList"></div>
+  </section>
+
+  <!-- EVENTS -->
+  <section id="view-events" class="view hidden">
+    <div class="filter-row">
+      <a href="/api/export" class="export-btn" download>⬇ Export ZIP (DB + CSV + photos)</a>
+    </div>
+    <details class="event-form">
+      <summary>+ New drop-off</summary>
+      <form id="eventForm">
+        <label>Charity name
+          <input name="charity_name" required placeholder="Goodwill, Salvation Army, ...">
+        </label>
+        <label>Date
+          <input name="donation_date" type="date" required>
+        </label>
+        <label>Address (optional)
+          <input name="charity_address" placeholder="Street, City, State">
+        </label>
+        <label>Notes (optional)
+          <textarea name="notes" rows="2"></textarea>
+        </label>
+        <button type="submit">Create</button>
+      </form>
+    </details>
+    <div id="eventList"></div>
+  </section>
+</main>
+
+<!-- ITEM EDIT MODAL -->
+<div id="itemModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="close" data-close>&times;</button>
+    <img id="modalImg" alt="">
+    <div id="modalDate" class="hint" style="margin:.4rem 0"></div>
+    <div id="analyzingBanner" class="banner hidden">
+      AI is still analyzing this photo. You can fill in the details now —
+      saving will lock in your values and the AI will skip this item.
+    </div>
+    <form id="itemForm">
+      <input type="hidden" name="id">
+      <label>Description<input name="description"></label>
+      <label>Category<select name="category_key"></select></label>
+      <label>Condition
+        <select name="condition">
+          <option value="excellent">Excellent / like new</option>
+          <option value="good" selected>Good</option>
+          <option value="fair">Fair</option>
+        </select>
+      </label>
+      <label>Donor<select name="donor_id"></select></label>
+      <div class="row">
+        <label>Quantity<input name="quantity" type="number" min="1" step="1" value="1"></label>
+        <label>Value ($)<input name="estimated_value" type="number" min="0" step="0.01"></label>
+      </div>
+      <div id="modalCalc" class="calc-box"></div>
+      <div id="modalFmvHint" class="hint"></div>
+      <label>Notes<textarea name="notes" rows="2"></textarea></label>
+      <div class="actions">
+        <button type="button" class="danger" id="deleteItem">Delete</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- EVENT DETAIL MODAL -->
+<div id="eventModal" class="modal hidden">
+  <div class="modal-card wide">
+    <button class="close" data-close>&times;</button>
+    <h2 id="evTitle"></h2>
+    <div id="evMeta" class="meta"></div>
+    <h3>In this drop-off <span id="evTotal" class="total-pill"></span></h3>
+    <div id="evItems" class="card-grid small"></div>
+    <h3>Add unassigned items</h3>
+    <div class="event-actions">
+      <button id="donateAllBtn" class="primary">Donate all unassigned</button>
+    </div>
+    <div id="evUnassigned" class="card-grid small selectable"></div>
+    <div class="event-actions">
+      <button id="addSelectedBtn">Add selected</button>
+      <a id="receiptLink" class="link" target="_blank">Open receipt &rarr;</a>
+      <button id="deleteEventBtn" class="danger">Delete drop-off</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

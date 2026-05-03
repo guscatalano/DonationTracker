@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Donation Receipt</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+@media print {
+  .noprint { display: none !important; }
+  body { background: white; color: black; }
+  .receipt { box-shadow: none; max-width: 100%; }
+}
+.receipt { background: white; color: #111; max-width: 760px; margin: 1.5rem auto;
+  padding: 1.5rem; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+.receipt h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
+.receipt table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+.receipt th, .receipt td { padding: .4rem .5rem; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
+.receipt th { background: #f4f4f7; font-size: .85rem; }
+.receipt td.num, .receipt th.num { text-align: right; }
+.receipt tfoot td { font-weight: bold; border-top: 2px solid #111; }
+.receipt .small { color: #555; font-size: .85rem; }
+.receipt .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; }
+.print-btn { display: inline-block; margin: 1rem; padding: .6rem 1.1rem;
+  background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="noprint" style="text-align:center">
+  <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  <a class="print-btn" style="background:#475569" href="/">Back</a>
+</div>
+<div id="receipt" class="receipt">Loading…</div>
+<script>
+const id = location.pathname.split("/").pop();
+fetch(`/api/events/${id}`).then(r => r.json()).then(ev => {
+  const fmt = n => "$" + (Number(n||0)).toFixed(2);
+  const rows = ev.items.map(i => {
+    const range = (i.fmv_low!=null && i.fmv_median!=null && i.fmv_high!=null)
+      ? `range ${fmt(i.fmv_low)}–${fmt(i.fmv_high)}, ${escape(i.condition||"good")} bucket = ${fmt(i.estimated_value)}`
+      : "";
+    return `
+    <tr>
+      <td><img class="thumb" src="${i.image_url}"></td>
+      <td>${escape(i.description || i.category_label || "Item")}<br>
+          <span class="small">${escape(i.category_label||"")} &middot; ${escape(i.condition||"")} &middot; photo ${escape(shortDate(i.created_at))}<br>
+          ${range}</span></td>
+      <td class="num">${i.quantity}</td>
+      <td class="num">${fmt(i.estimated_value)}</td>
+      <td class="num">${fmt((i.estimated_value||0)*(i.quantity||1))}</td>
+    </tr>`;}).join("");
+  document.getElementById("receipt").innerHTML = `
+    <h1>Non-Cash Donation Receipt</h1>
+    <div class="small">Generated for personal tax records. Values from Goodwill / Salvation Army valuation guides per
+      <a href="https://www.irs.gov/pub/irs-pdf/p561.pdf">IRS Pub. 561</a> and
+      <a href="https://www.irs.gov/pub/irs-pdf/p526.pdf">Pub. 526</a>.
+      Methodology: <a href="/sources">/sources</a>.</div>
+    <p><b>Charity:</b> ${escape(ev.charity_name)}<br>
+       ${ev.charity_address ? "<b>Address:</b> "+escape(ev.charity_address)+"<br>" : ""}
+       <b>Date of donation:</b> ${escape(ev.donation_date)}<br>
+       <b>Items:</b> ${ev.item_count}</p>
+    ${ev.notes ? `<p><b>Notes:</b> ${escape(ev.notes)}</p>` : ""}
+    <table>
+      <thead><tr><th></th><th>Description</th><th class="num">Qty</th><th class="num">FMV / unit</th><th class="num">Subtotal</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="4" class="num">Total estimated FMV</td><td class="num">${fmt(ev.total_value)}</td></tr></tfoot>
+    </table>
+    <p class="small" style="margin-top:1.5rem">
+      I certify that the above items were donated in good condition or better, in accordance with IRS Publication 526.
+      No goods or services were received in exchange. For donations valued over $5,000 a qualified appraisal is required.
+    </p>
+    <p class="small">Donor signature: ____________________________ &nbsp; Date: __________</p>`;
+});
+function escape(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function shortDate(s){ if(!s) return ""; const d=new Date(s.replace(" ","T")+"Z"); return isNaN(d)?s:d.toLocaleDateString(); }
+</script>
+</body>
+</html>

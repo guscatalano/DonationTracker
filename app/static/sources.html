@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sources & Methodology — Donation Tracker</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+.doc { background: var(--panel); max-width: 880px; margin: 1.5rem auto;
+  padding: 1.5rem 2rem; border-radius: 10px; }
+.doc h1 { margin-top: 0; }
+.doc h2 { border-bottom: 1px solid var(--border); padding-bottom: .25rem; margin-top: 2rem; }
+.src-card { background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: .8rem 1rem; margin: .6rem 0; }
+.src-card a { color: var(--accent); }
+.src-card .note { color: var(--muted); margin-top: .3rem; font-size: .9rem; }
+.cat-table { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .9rem; }
+.cat-table th, .cat-table td { padding: .3rem .5rem; border-bottom: 1px solid var(--border); }
+.cat-table th { background: var(--panel-2); text-align: left; }
+.cat-table td.num, .cat-table th.num { text-align: right; }
+.cat-table .group-row td { background: var(--panel-2); font-weight: 600;
+  color: var(--accent); padding-top: .6rem; }
+.back { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p><a class="back" href="/">← Back to app</a></p>
+  <h1>Where the dollar amounts come from</h1>
+  <p id="methodology"></p>
+
+  <h2>Authoritative references</h2>
+  <div id="sources"></div>
+
+  <h2>Full FMV table used by this app</h2>
+  <p style="color: var(--muted); font-size: .9rem">
+    For each category we record three values: <b>low</b> (used when condition is "fair"),
+    <b>median</b> (default; used when condition is "good"), and <b>high</b>
+    (used when condition is "excellent / like new"). These should fall inside the
+    published Salvation Army and Goodwill ranges for the same item category in
+    "good used condition or better" — the standard IRS Publication 526 §A.2 sets
+    for clothing and household items.
+  </p>
+  <table class="cat-table">
+    <thead><tr><th>Category</th><th class="num">Low (fair)</th><th class="num">Median (good)</th><th class="num">High (excellent)</th></tr></thead>
+    <tbody id="catBody"></tbody>
+  </table>
+
+  <h2>What this tool is not</h2>
+  <ul style="line-height:1.7;color:var(--muted)">
+    <li>Not a tax return. The app produces a record you attach to your records and use to fill out IRS Form 8283 if your total exceeds $500.</li>
+    <li>Not an appraisal. Single items or "groups of similar items" worth more than $5,000 require a qualified appraisal under Pub. 561 — this app cannot substitute for that.</li>
+    <li>Not legal/tax advice. The values are good-faith estimates based on published guides; the taxpayer is responsible for the final FMV claimed.</li>
+  </ul>
+</div>
+
+<script>
+function escape(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+const fmt = n => "$" + Number(n).toFixed(2);
+
+fetch("/api/sources").then(r => r.json()).then(d => {
+  document.getElementById("methodology").textContent = d.methodology;
+  const srcs = Object.values(d.sources);
+  document.getElementById("sources").innerHTML = srcs.map(s => `
+    <div class="src-card">
+      <div><a href="${escape(s.url)}" target="_blank" rel="noopener">${escape(s.title)}</a>
+        ${s.html_url ? ` &middot; <a href="${escape(s.html_url)}" target="_blank" rel="noopener">[HTML page]</a>` : ""}
+        ${s.instructions_url ? ` &middot; <a href="${escape(s.instructions_url)}" target="_blank" rel="noopener">[Instructions PDF]</a>` : ""}
+      </div>
+      <div class="note">${escape(s.note || "")}</div>
+    </div>`).join("");
+
+  // Group categories by their key prefix for readability
+  const groups = {};
+  for (const c of d.categories) {
+    const g = c.key.split("_")[0];
+    (groups[g] = groups[g] || []).push(c);
+  }
+  const labelFor = {
+    clothing: "Clothing", linens: "Linens", kitchen: "Kitchen",
+    furniture: "Furniture", electronics: "Electronics", appliance: "Appliances",
+    media: "Books / media", toys: "Toys", sports: "Sports & outdoor",
+    tools: "Tools", decor: "Home decor", jewelry: "Jewelry",
+    baby: "Baby & kids", other: "Other"
+  };
+  let html = "";
+  for (const g of Object.keys(groups).sort()) {
+    html += `<tr class="group-row"><td colspan="4">${escape(labelFor[g] || g)}</td></tr>`;
+    for (const c of groups[g]) {
+      html += `<tr>
+        <td>${escape(c.label)}</td>
+        <td class="num">${fmt(c.low)}</td>
+        <td class="num">${fmt(c.median)}</td>
+        <td class="num">${fmt(c.high)}</td>
+      </tr>`;
+    }
+  }
+  document.getElementById("catBody").innerHTML = html;
+});
+</script>
+</body>
+</html>
