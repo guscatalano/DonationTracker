@@ -13,7 +13,7 @@
   <nav>
     <button class="tab" data-view="capture">Add</button>
     <button class="tab" data-view="items">Items</button>
-    <button class="tab" data-view="events">Drop-offs</button>
+    <button class="tab" data-view="events">Activity</button>
     <button class="tab" data-view="donors">Donors</button>
     <a class="tab" href="/summary">Tax year</a>
     <a class="tab" href="/sources" title="Where the dollar amounts come from">FAQ</a>
@@ -29,15 +29,50 @@
       </label>
       <span class="hint">Saved on this device only — each phone picks its own.</span>
     </div>
-    <label class="capture-card">
-      <input id="captureInput" type="file" accept="image/*" capture="environment" multiple hidden>
-      <div class="capture-icon">+</div>
-      <div class="capture-text">Take photo / pick image(s)</div>
-      <div class="capture-sub">Snap as many as you want — descriptions fill in in the background.</div>
-    </label>
-    <div id="captureStatus" class="status hidden"></div>
-    <h3 id="recentHeading" class="hidden">Recent</h3>
-    <div id="recentList" class="card-grid"></div>
+    <div class="seg-toggle" role="tablist">
+      <button type="button" class="seg active" data-mode="item">📷 Item (photo)</button>
+      <button type="button" class="seg" data-mode="cash">💵 Cash gift (receipt)</button>
+    </div>
+
+    <!-- Item mode -->
+    <div id="addModeItem">
+      <label class="capture-card">
+        <input id="captureInput" type="file" accept="image/*" capture="environment" multiple hidden>
+        <div class="capture-icon">+</div>
+        <div class="capture-text">Take photo / pick image(s)</div>
+        <div class="capture-sub">Snap as many as you want — descriptions fill in in the background.</div>
+      </label>
+      <div id="captureStatus" class="status hidden"></div>
+      <h3 id="recentHeading" class="hidden">Recent</h3>
+      <div id="recentList" class="card-grid"></div>
+    </div>
+
+    <!-- Cash mode -->
+    <div id="addModeCash" class="hidden">
+      <form id="cashForm" class="event-form" style="padding:1rem">
+        <label>Charity name<input name="charity_name" required placeholder="Red Cross, NPR, ..."></label>
+        <div class="row">
+          <label>Amount ($)<input name="amount" type="number" min="0" step="0.01" required></label>
+          <label>Date<input name="donation_date" type="date" required></label>
+        </div>
+        <label>Method
+          <select name="payment_method">
+            <option value="cash">Cash</option>
+            <option value="check">Check</option>
+            <option value="card" selected>Credit / debit card</option>
+            <option value="bank">Bank transfer</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>Charity address (optional)<input name="charity_address"></label>
+        <label>Notes (optional)<textarea name="notes" rows="2"></textarea></label>
+        <label>Receipt (optional — image or PDF)
+          <input name="receipt" type="file" accept="image/*,.pdf,application/pdf" capture="environment">
+        </label>
+        <button type="submit">Save cash gift</button>
+        <div id="cashStatus" class="status hidden"></div>
+      </form>
+    </div>
   </section>
 
   <!-- ITEMS -->
@@ -64,6 +99,7 @@
     <div class="filter-row">
       <a href="/api/export" class="export-btn" download>⬇ Export ZIP (DB + CSV + photos)</a>
     </div>
+    <h3 style="margin-top:0">Drop-offs (non-cash items)</h3>
     <details class="event-form">
       <summary>+ New drop-off</summary>
       <form id="eventForm">
@@ -83,6 +119,9 @@
       </form>
     </details>
     <div id="eventList"></div>
+    <h3 style="margin-top:1.5rem">Cash gifts</h3>
+    <div id="cashTotal" class="total-pill" style="margin:.5rem 0;display:inline-block"></div>
+    <div id="cashList"></div>
   </section>
 </main>
 
@@ -110,14 +149,72 @@
       <label>Donor<select name="donor_id"></select></label>
       <div class="row">
         <label>Quantity<input name="quantity" type="number" min="1" step="1" value="1"></label>
-        <label>Value ($)<input name="estimated_value" type="number" min="0" step="0.01"></label>
+        <label>Value per unit ($)
+          <button type="button" id="valueBadge" class="value-badge auto" title="Click to switch between auto-calculated and manual override">auto · click to override</button>
+          <input name="estimated_value" type="number" min="0" step="0.01">
+        </label>
       </div>
+      <input type="hidden" name="value_overridden" value="false">
       <div id="modalCalc" class="calc-box"></div>
       <div id="modalFmvHint" class="hint"></div>
       <label>Notes<textarea name="notes" rows="2"></textarea></label>
       <div class="actions">
         <button type="button" class="danger" id="deleteItem">Delete</button>
+        <button type="button" id="reanalyzeItem" title="Run the vision LLM again on this photo. Will overwrite description, category, condition, and value.">🤖 Re-run AI</button>
         <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- CASH EDIT MODAL -->
+<div id="cashEditModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="close" data-close>&times;</button>
+    <h2 style="margin:0 0 .25rem">Edit cash gift</h2>
+    <p class="hint" style="margin:0 0 1rem">Update any field, then Save. Receipt can be replaced or removed.</p>
+    <form id="cashEditForm" class="event-form">
+      <input type="hidden" name="id">
+
+      <fieldset class="form-section">
+        <legend>Gift</legend>
+        <label>Charity<input name="charity_name" required></label>
+        <div class="row">
+          <label>Amount ($)<input name="amount" type="number" min="0" step="0.01" required></label>
+          <label>Date<input name="donation_date" type="date" required></label>
+        </div>
+        <div class="row">
+          <label>Method
+            <select name="payment_method">
+              <option value="cash">Cash</option>
+              <option value="check">Check</option>
+              <option value="card">Credit / debit card</option>
+              <option value="bank">Bank transfer</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>Donor<select name="donor_id"></select></label>
+        </div>
+        <label>Charity address<input name="charity_address" placeholder="Optional"></label>
+        <label>Notes<textarea name="notes" rows="2" placeholder="Optional"></textarea></label>
+      </fieldset>
+
+      <fieldset class="form-section">
+        <legend>Receipt</legend>
+        <div id="cashEditReceiptCurrent" class="receipt-current"></div>
+        <label class="file-label">
+          <span class="file-label-text">📎 Choose new receipt (image or PDF)</span>
+          <input name="receipt" type="file" accept="image/*,.pdf,application/pdf">
+        </label>
+        <label class="value-mode" id="cashRemoveReceiptWrap" style="display:none">
+          <input type="checkbox" name="remove_receipt">
+          <span>Remove the current receipt instead</span>
+        </label>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" class="danger" id="cashEditDelete">Delete</button>
+        <button type="submit" class="primary">Save changes</button>
       </div>
     </form>
   </div>
@@ -127,20 +224,36 @@
 <div id="eventModal" class="modal hidden">
   <div class="modal-card wide">
     <button class="close" data-close>&times;</button>
-    <h2 id="evTitle"></h2>
-    <div id="evMeta" class="meta"></div>
-    <h3>In this drop-off <span id="evTotal" class="total-pill"></span></h3>
-    <div id="evItems" class="card-grid small"></div>
-    <h3>Add unassigned items</h3>
-    <div class="event-actions">
-      <button id="donateAllBtn" class="primary">Donate all unassigned</button>
-    </div>
-    <div id="evUnassigned" class="card-grid small selectable"></div>
-    <div class="event-actions">
-      <button id="addSelectedBtn">Add selected</button>
-      <a id="receiptLink" class="link" target="_blank">Open receipt &rarr;</a>
+
+    <header class="ev-header">
+      <h2 id="evTitle"></h2>
+      <div id="evMeta" class="meta"></div>
+      <div id="evTotal" class="ev-total"></div>
+    </header>
+
+    <section class="ev-section">
+      <div class="ev-section-head">
+        <h3>📦 In this drop-off</h3>
+        <span class="hint">Tap a card to remove it.</span>
+      </div>
+      <div id="evItems" class="card-grid small"></div>
+    </section>
+
+    <section class="ev-section">
+      <div class="ev-section-head">
+        <h3>🗂️ Available items</h3>
+        <span class="hint">Tap to add. Or use the bulk button below.</span>
+      </div>
+      <div id="evUnassignedActions" class="event-actions" style="margin-bottom:.6rem">
+        <button id="donateAllBtn" class="primary">⤓ Add all available</button>
+      </div>
+      <div id="evUnassigned" class="card-grid small"></div>
+    </section>
+
+    <footer class="ev-footer">
+      <a id="receiptLink" class="btn-link" target="_blank">📄 Print receipt</a>
       <button id="deleteEventBtn" class="danger">Delete drop-off</button>
-    </div>
+    </footer>
   </div>
 </div>
 

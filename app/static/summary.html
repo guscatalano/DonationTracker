@@ -138,8 +138,13 @@ async function render(year) {
       Full methodology and per-category ranges: <a href="/sources" target="_blank">/sources</a>.
     </p>
 
-    <p>Total deductible value claimed for ${year}: <span class="grand">${fmt(s.grand_total)}</span><br>
-       ${s.grand_items} items across ${s.event_count} drop-off${s.event_count===1?"":"s"}.</p>
+    <p>
+      <b>Non-cash items:</b> <span class="grand">${fmt(s.grand_total)}</span> &nbsp;
+      <span class="small">(${s.grand_items} items, ${s.event_count} drop-off${s.event_count===1?"":"s"})</span><br>
+      <b>Cash gifts:</b> <span class="grand">${fmt(s.cash_total||0)}</span> &nbsp;
+      <span class="small">(${s.cash_count||0} donation${s.cash_count===1?"":"s"})</span><br>
+      <b>Combined total:</b> <span class="grand">${fmt(s.combined_total||s.grand_total)}</span>
+    </p>
 
     ${callouts.map(c => `<div class="callout">${c}</div>`).join("")}
 
@@ -163,6 +168,24 @@ async function render(year) {
     ` : ""}
 
     ${charityBlocks || `<p style="margin-top:2rem;color:#777">No drop-offs recorded for ${year}.</p>`}
+
+    ${s.cash_by_charity && s.cash_by_charity.length ? `
+    <h2>Cash donations</h2>
+    <p class="small">IRS Pub. 526: cash gifts of $250 or more require a written acknowledgment from the charity. Bank or card statements suffice for amounts under $250.</p>
+    ${s.cash_by_charity.map(g => `
+      <h3>${escape(g.charity_name)} &middot; <b>${fmt(g.total)}</b></h3>
+      <table>
+        <thead><tr><th>Date</th><th>Method</th><th>Donor</th><th>Notes</th><th class="num">Amount</th></tr></thead>
+        <tbody>${g.items.map(c => `
+          <tr>
+            <td>${escape(c.donation_date)}</td>
+            <td>${escape(c.payment_method || "")}</td>
+            <td>${escape(c.donor_name || "")}</td>
+            <td>${escape(c.notes || "")}${c.receipt_url ? ' <a href="'+escape(c.receipt_url)+'" target="_blank">[receipt]</a>' : ""}</td>
+            <td class="num">${fmt(c.amount)}</td>
+          </tr>`).join("")}</tbody>
+      </table>`).join("")}
+    ` : ""}
 
     <h2>Donor certification</h2>
     <p class="small">I certify that the items listed above were donated in good used condition or better, in accordance with IRS Publication 526. No goods or services were received in exchange. The fair-market values are good-faith estimates based on the published valuation guides referenced above.</p>

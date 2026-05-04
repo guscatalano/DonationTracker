@@ -17,6 +17,17 @@ from .db import DB_PATH, UPLOAD_DIR, init_db, tx
 app = FastAPI(title="Donation Tracker")
 init_db()
 
+# Apply any persisted LLM endpoint override from the settings table at startup.
+def _apply_persisted_settings() -> None:
+    with tx() as conn:
+        url = conn.execute("SELECT value FROM settings WHERE key='llm_base_url'").fetchone()
+        model = conn.execute("SELECT value FROM settings WHERE key='llm_model'").fetchone()
+    if url and url["value"]:
+        vision.set_base_url(url["value"])
+    if model and model["value"]:
+        vision.set_model_override(model["value"])
+_apply_persisted_settings()
+
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
@@ -38,6 +49,7 @@ def _row_to_item(row) -> dict:
         "fmv_median": row["fmv_median"],
         "fmv_high": row["fmv_high"],
         "estimated_value": row["estimated_value"],
+        "value_overridden": bool(row["value_overridden"]) if "value_overridden" in keys else False,
         "quantity": row["quantity"],
         "notes": row["notes"],
         "status": row["status"],
@@ -45,6 +57,24 @@ def _row_to_item(row) -> dict:
         "event_id": row["event_id"],
         "donor_id": row["donor_id"],
         "donor_name": row["donor_name"] if "donor_name" in keys else None,
+    }
+
+
+def _row_to_cash(row) -> dict:
+    keys = row.keys() if hasattr(row, "keys") else []
+    return {
+        "id": row["id"],
+        "created_at": row["created_at"],
+        "donation_date": row["donation_date"],
+        "charity_name": row["charity_name"],
+        "charity_address": row["charity_address"],
+        "amount": row["amount"],
+        "payment_method": row["payment_method"],
+        "donor_id": row["donor_id"],
+        "donor_name": row["donor_name"] if "donor_name" in keys else None,
+        "receipt_filename": row["receipt_filename"],
+        "receipt_url": f"/uploads/{row['receipt_filename']}" if row["receipt_filename"] else None,
+        "notes": row["notes"],
     }
 
 
@@ -102,9 +132,14 @@ def _row_to_event(row) -> dict:
     }
 
 
+_IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif")
+_RECEIPT_SUFFIXES = _IMAGE_SUFFIXES + (".pdf",)
+
+
 def _save_upload(file: UploadFile) -> str:
+    """Save an item photo, re-encoded as JPEG for size."""
     suffix = Path(file.filename or "upload.jpg").suffix.lower() or ".jpg"
-    if suffix not in (".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif"):
+    if suffix not in _IMAGE_SUFFIXES:
         suffix = ".jpg"
     name = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(4)}{suffix}"
     raw_path = UPLOAD_DIR / name
@@ -126,6 +161,22 @@ def _save_upload(file: UploadFile) -> str:
         return name
 
 
+def _save_receipt(file: UploadFile) -> str:
+    """Save a cash receipt: image (re-encoded for size) or PDF/other (saved as-is)."""
+    suffix = Path(file.filename or "receipt").suffix.lower()
+    if suffix in _IMAGE_SUFFIXES:
+        return _save_upload(file)
+    # Non-image: keep original bytes and extension. Whitelist a few common types.
+    if suffix not in (".pdf", ".heic", ".txt"):
+        # Default to .pdf for unknown content-types claiming pdf, else .bin
+        ct = (file.content_type or "").lower()
+        if "pdf" in ct: suffix = ".pdf"
+        else: suffix = suffix or ".bin"
+    name = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(4)}{suffix}"
+    (UPLOAD_DIR / name).write_bytes(file.file.read())
+    return name
+
+
 # ---------- routes ----------
 
 @app.get("/")
@@ -134,15 +185,55 @@ def index():
 
 
 @app.get("/api/health")
-def health():
-    try:
-        model = vision.get_model()
-        return {"ok": True, "model": model, "llm_base_url": vision.LLM_BASE_URL}
-    except Exception as e:
-        return JSONResponse(
-            status_code=503,
-            content={"ok": False, "error": str(e), "llm_base_url": vision.LLM_BASE_URL},
-        )
+def health(timeout: float = 5.0):
+    """Fast LLM probe — only hits /v1/models, never attempts to load a model.
+    Capped at 8 seconds even if the caller asks for more, so the UI never hangs."""
+    timeout = min(max(timeout, 1.0), 8.0)
+    result = vision.health_check(timeout_s=timeout)
+    payload = {
+        "ok": result["ok"],
+        "model": result.get("model"),
+        "error": result.get("error"),
+        "available_count": result.get("available_count"),
+        "llm_base_url": vision.LLM_BASE_URL,
+        "llm_default_url": vision.DEFAULT_LLM_BASE_URL,
+    }
+    return JSONResponse(status_code=200 if result["ok"] else 503, content=payload)
+
+
+@app.get("/api/settings/llm_base_url")
+def get_llm_base_url():
+    return {
+        "current": vision.LLM_BASE_URL,
+        "default": vision.DEFAULT_LLM_BASE_URL,
+        "persisted": _get_setting("llm_base_url"),
+    }
+
+
+@app.post("/api/settings/llm_base_url")
+async def set_llm_base_url(url: str = Form("")):
+    """Update the active LLM endpoint and persist to the settings table.
+    Empty string resets to the env default."""
+    new_url = vision.set_base_url(url)
+    _set_setting("llm_base_url", url.strip() or None)
+    return {"current": new_url, "persisted": _get_setting("llm_base_url")}
+
+
+@app.get("/api/settings/llm_model")
+def get_llm_model():
+    return {
+        "override": vision.LLM_MODEL_OVERRIDE,
+        "persisted": _get_setting("llm_model"),
+        "available": vision.list_available_models(timeout_s=5.0),
+    }
+
+
+@app.post("/api/settings/llm_model")
+async def set_llm_model(model: str = Form("")):
+    """Pin the LLM model. Empty string clears the override (auto-detect)."""
+    new_model = vision.set_model_override(model)
+    _set_setting("llm_model", model.strip() or None)
+    return {"override": new_model, "persisted": _get_setting("llm_model")}
 
 
 @app.get("/api/categories")
@@ -259,8 +350,9 @@ async def update_item(
     condition: str | None = Form(None),
     quantity: int | None = Form(None),
     estimated_value: float | None = Form(None),
+    value_overridden: str | None = Form(None),  # "true"/"false"/"1"/"0"/None=unchanged
     notes: str | None = Form(None),
-    donor_id: str | None = Form(None),  # str so we can parse "" to mean clear
+    donor_id: str | None = Form(None),
 ):
     with tx() as conn:
         row = conn.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
@@ -278,32 +370,48 @@ async def update_item(
         new_qty = quantity if quantity is not None else row["quantity"]
         new_notes = notes if notes is not None else row["notes"]
 
+        # Decide override flag: explicit form field wins, else preserve, but
+        # always treat the row as overridden if the user typed a value that
+        # differs from what auto would compute below.
+        if value_overridden is None:
+            new_override = bool(row["value_overridden"])
+        else:
+            new_override = value_overridden.lower() in ("true", "1", "yes", "on")
+
+        # Resolve category/FMV range
         if category_key is not None and category_key != row["category_key"]:
             est = fmv.estimate(category_key, new_cond)
             new_cat_key = est["category_key"]
             new_cat_label = est["category_label"]
             new_low, new_med, new_high = est["fmv_low"], est["fmv_median"], est["fmv_high"]
-            new_value = est["estimated_value"] if estimated_value is None else estimated_value
+            auto_value = est["estimated_value"]
         else:
             new_cat_key = row["category_key"]
             new_cat_label = row["category_label"]
             new_low, new_med, new_high = row["fmv_low"], row["fmv_median"], row["fmv_high"]
-            if estimated_value is not None:
-                new_value = estimated_value
-            elif condition is not None:
+            if new_cat_key:
                 est = fmv.estimate(new_cat_key, new_cond)
-                new_value = est["estimated_value"]
+                auto_value = est["estimated_value"]
             else:
-                new_value = row["estimated_value"]
+                auto_value = row["estimated_value"]
+
+        # Resolve final value:
+        #   - override mode: trust what the user sent (or keep current)
+        #   - auto mode: ignore any sent value, use auto_value
+        if new_override:
+            new_value = estimated_value if estimated_value is not None else row["estimated_value"]
+        else:
+            new_value = auto_value
 
         conn.execute(
             """UPDATE items SET description=?, category_key=?, category_label=?,
                condition=?, fmv_low=?, fmv_median=?, fmv_high=?,
-               estimated_value=?, quantity=?, notes=?, donor_id=?,
+               estimated_value=?, value_overridden=?, quantity=?, notes=?, donor_id=?,
                status='ready', error=NULL
                WHERE id=?""",
             (new_desc, new_cat_key, new_cat_label, new_cond,
-             new_low, new_med, new_high, new_value, new_qty, new_notes, new_donor, item_id),
+             new_low, new_med, new_high, new_value, 1 if new_override else 0,
+             new_qty, new_notes, new_donor, item_id),
         )
         row = _fetch_item_row(conn, item_id)
     return _row_to_item(row)
@@ -520,6 +628,16 @@ def summary(year: int):
     for d in donor_totals.values():
         d["by_category"] = sorted(d["by_category"].values(), key=lambda x: -x["value"])
 
+    # Cash donations for this year
+    cash_rows = list_cash(year=year)
+    cash_total = sum(c["amount"] or 0 for c in cash_rows)
+    cash_by_charity: dict[str, dict] = {}
+    for c in cash_rows:
+        k = c["charity_name"].strip()
+        g = cash_by_charity.setdefault(k, {"charity_name": k, "items": [], "total": 0.0})
+        g["items"].append(c)
+        g["total"] += c["amount"] or 0
+
     return {
         "year": year,
         "charities": list(by_charity.values()),
@@ -529,6 +647,10 @@ def summary(year: int):
         "grand_items": grand_items,
         "event_count": len(events),
         "unassigned_in_year": unassigned_in_year,
+        "cash_total": cash_total,
+        "cash_count": len(cash_rows),
+        "cash_by_charity": list(cash_by_charity.values()),
+        "combined_total": grand_total + cash_total,
         "form_8283_required": grand_total > 500,
         "appraisal_required_threshold_hit": any(
             ((i["estimated_value"] or 0) * (i["quantity"] or 1)) > 5000
@@ -539,19 +661,156 @@ def summary(year: int):
     }
 
 
+# --- cash donations ---
+
+@app.post("/api/cash")
+async def create_cash(
+    charity_name: str = Form(...),
+    donation_date: str = Form(...),
+    amount: float = Form(...),
+    payment_method: str = Form("cash"),
+    charity_address: str | None = Form(None),
+    donor_id: str | None = Form(None),
+    notes: str | None = Form(None),
+    receipt: UploadFile | None = File(None),
+):
+    if amount < 0:
+        raise HTTPException(400, "amount must be non-negative")
+    did: int | None = None
+    if donor_id and donor_id.strip():
+        try: did = int(donor_id)
+        except ValueError: did = None
+    fname: str | None = None
+    if receipt is not None and receipt.filename:
+        fname = _save_receipt(receipt)
+    with tx() as conn:
+        cur = conn.execute(
+            """INSERT INTO cash_donations
+               (donation_date, charity_name, charity_address, amount, payment_method,
+                donor_id, receipt_filename, notes)
+               VALUES (?,?,?,?,?,?,?,?)""",
+            (donation_date, charity_name, charity_address, amount, payment_method,
+             did, fname, notes),
+        )
+        row = _fetch_cash_row(conn, cur.lastrowid)
+    return _row_to_cash(row)
+
+
+def _fetch_cash_row(conn, cash_id: int):
+    return conn.execute(
+        "SELECT c.*, d.name AS donor_name FROM cash_donations c "
+        "LEFT JOIN donors d ON c.donor_id = d.id WHERE c.id=?",
+        (cash_id,),
+    ).fetchone()
+
+
+@app.get("/api/cash")
+def list_cash(year: int | None = None):
+    sql = ("SELECT c.*, d.name AS donor_name FROM cash_donations c "
+           "LEFT JOIN donors d ON c.donor_id = d.id")
+    params: list = []
+    if year is not None:
+        sql += " WHERE c.donation_date LIKE ?"
+        params.append(f"{year:04d}-%")
+    sql += " ORDER BY c.donation_date DESC, c.id DESC"
+    with tx() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [_row_to_cash(r) for r in rows]
+
+
+@app.patch("/api/cash/{cash_id}")
+async def update_cash(
+    cash_id: int,
+    charity_name: str | None = Form(None),
+    donation_date: str | None = Form(None),
+    amount: float | None = Form(None),
+    payment_method: str | None = Form(None),
+    charity_address: str | None = Form(None),
+    donor_id: str | None = Form(None),
+    notes: str | None = Form(None),
+    receipt: UploadFile | None = File(None),
+    remove_receipt: str | None = Form(None),  # "true" to delete the existing one
+):
+    with tx() as conn:
+        row = conn.execute("SELECT * FROM cash_donations WHERE id=?", (cash_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "not found")
+        if donor_id is None:
+            new_donor = row["donor_id"]
+        elif donor_id == "":
+            new_donor = None
+        else:
+            new_donor = int(donor_id)
+
+        new_receipt = row["receipt_filename"]
+        old_to_remove: str | None = None
+        if receipt is not None and receipt.filename:
+            new_receipt = _save_receipt(receipt)
+            if row["receipt_filename"] and row["receipt_filename"] != new_receipt:
+                old_to_remove = row["receipt_filename"]
+        elif remove_receipt and remove_receipt.lower() in ("true", "1", "yes", "on"):
+            if row["receipt_filename"]:
+                old_to_remove = row["receipt_filename"]
+            new_receipt = None
+
+        conn.execute(
+            """UPDATE cash_donations SET
+               charity_name=?, donation_date=?, charity_address=?,
+               amount=?, payment_method=?, donor_id=?, notes=?, receipt_filename=?
+               WHERE id=?""",
+            (charity_name if charity_name is not None else row["charity_name"],
+             donation_date if donation_date is not None else row["donation_date"],
+             charity_address if charity_address is not None else row["charity_address"],
+             amount if amount is not None else row["amount"],
+             payment_method if payment_method is not None else row["payment_method"],
+             new_donor,
+             notes if notes is not None else row["notes"],
+             new_receipt,
+             cash_id),
+        )
+        row = _fetch_cash_row(conn, cash_id)
+    if old_to_remove:
+        try: (UPLOAD_DIR / old_to_remove).unlink(missing_ok=True)
+        except Exception: pass
+    return _row_to_cash(row)
+
+
+@app.delete("/api/cash/{cash_id}")
+def delete_cash(cash_id: int):
+    with tx() as conn:
+        row = conn.execute("SELECT receipt_filename FROM cash_donations WHERE id=?",
+                           (cash_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "not found")
+        conn.execute("DELETE FROM cash_donations WHERE id=?", (cash_id,))
+    if row["receipt_filename"]:
+        try: (UPLOAD_DIR / row["receipt_filename"]).unlink(missing_ok=True)
+        except Exception: pass
+    return {"ok": True}
+
+
 # --- donors ---
 
 @app.get("/api/donors")
 def list_donors():
     with tx() as conn:
         rows = conn.execute(
-            "SELECT d.id, d.name, d.created_at, "
-            "COUNT(i.id) AS item_count, "
-            "COALESCE(SUM(i.estimated_value*i.quantity),0) AS total_value "
-            "FROM donors d LEFT JOIN items i ON i.donor_id = d.id "
-            "GROUP BY d.id ORDER BY d.name COLLATE NOCASE ASC"
+            """SELECT d.id, d.name, d.created_at,
+               (SELECT COUNT(*) FROM items WHERE donor_id=d.id) AS item_count,
+               (SELECT COALESCE(SUM(estimated_value*quantity),0)
+                  FROM items WHERE donor_id=d.id) AS items_value,
+               (SELECT COUNT(*) FROM cash_donations WHERE donor_id=d.id) AS cash_count,
+               (SELECT COALESCE(SUM(amount),0)
+                  FROM cash_donations WHERE donor_id=d.id) AS cash_value
+               FROM donors d
+               ORDER BY d.name COLLATE NOCASE ASC"""
         ).fetchall()
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["total_value"] = (d["items_value"] or 0) + (d["cash_value"] or 0)
+        out.append(d)
+    return out
 
 
 @app.post("/api/donors")
@@ -648,21 +907,44 @@ def export_zip():
         ])
     csv_bytes = csv_buf.getvalue().encode("utf-8")
 
+    # Cash donations CSV
+    cash_csv = io.StringIO(); cash_csv.write("﻿")
+    cw = csv.writer(cash_csv)
+    cw.writerow(["cash_id", "donation_date", "donor", "charity_name", "charity_address",
+                 "amount", "payment_method", "receipt_file", "receipt_relpath", "notes"])
+    with tx() as conn:
+        cash_rows = conn.execute(
+            "SELECT c.*, d.name AS donor_name FROM cash_donations c "
+            "LEFT JOIN donors d ON c.donor_id = d.id "
+            "ORDER BY c.donation_date ASC, c.id ASC"
+        ).fetchall()
+    for r in cash_rows:
+        rf = r["receipt_filename"]
+        cw.writerow([
+            r["id"], r["donation_date"], r["donor_name"] or "",
+            r["charity_name"] or "", r["charity_address"] or "",
+            r["amount"], r["payment_method"] or "",
+            rf or "", f"images/{rf}" if rf else "",
+            r["notes"] or "",
+        ])
+    cash_bytes = cash_csv.getvalue().encode("utf-8")
+
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("donations.csv", csv_bytes)
+        zf.writestr("cash_donations.csv", cash_bytes)
         if DB_PATH.exists():
             zf.write(DB_PATH, "donations.db")
         readme = (
             "Donation Tracker export\n"
             "=======================\n\n"
-            "donations.csv  - one row per item, opens in Excel (UTF-8 with BOM).\n"
-            "                 The 'image_relpath' column points to the file in this archive.\n"
-            "donations.db   - SQLite database. Open with any SQLite tool, or drop back into\n"
-            "                 the app's data/ directory to restore.\n"
-            "images/        - every photo, named by its original upload filename.\n"
+            "donations.csv       - one row per non-cash item, opens in Excel (UTF-8 with BOM).\n"
+            "                      The 'image_relpath' column points to the file in this archive.\n"
+            "cash_donations.csv  - one row per cash gift; 'receipt_relpath' points at the receipt image.\n"
+            "donations.db        - SQLite database. Drop back into the app's data/ directory to restore.\n"
+            "images/             - every photo, named by its original upload filename.\n"
             "\nFair-market values are based on Goodwill / Salvation Army valuation guides\n"
-            "per IRS Pub. 561.\n"
+            "per IRS Pub. 561. Cash donations follow IRS Pub. 526 recordkeeping rules.\n"
         )
         zf.writestr("README.txt", readme)
         for img in UPLOAD_DIR.iterdir():

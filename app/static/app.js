@@ -25,9 +25,23 @@ function showView(name) {
     history.replaceState(null, "", "#" + name);
   }
   if (name === "items") loadItems();
-  if (name === "events") loadEvents();
+  if (name === "events") { loadEvents(); loadCash(); }
   if (name === "donors") loadDonors();
 }
+
+// ---------- Add-tab mode toggle: Item vs Cash ----------
+function setAddMode(mode) {
+  if (mode !== "item" && mode !== "cash") mode = "item";
+  $$(".seg-toggle .seg").forEach(x => x.classList.toggle("active", x.dataset.mode === mode));
+  $("#addModeItem").classList.toggle("hidden", mode !== "item");
+  $("#addModeCash").classList.toggle("hidden", mode !== "cash");
+  try { localStorage.setItem("dt.addMode", mode); } catch {}
+}
+// Event delegation: catches the click whether the user hit the button or its emoji/text child.
+$(".seg-toggle").addEventListener("click", e => {
+  const b = e.target.closest(".seg");
+  if (b) setAddMode(b.dataset.mode);
+});
 $$(".tab[data-view]").forEach(t => t.addEventListener("click", () => showView(t.dataset.view)));
 window.addEventListener("hashchange", () => {
   const n = location.hash.replace(/^#/, "");
@@ -60,7 +74,9 @@ async function loadDonorsAndSettings() {
 function populateDonorSelectors() {
   const opts = `<option value="">— none —</option>` +
     DONORS.map(d => `<option value="${d.id}">${escapeHTML(d.name)}</option>`).join("");
-  for (const sel of [$("#defaultDonor"), $("#itemForm select[name=donor_id]")]) {
+  for (const sel of [$("#defaultDonor"),
+                     $("#itemForm select[name=donor_id]"),
+                     $("#cashEditForm select[name=donor_id]")]) {
     if (!sel) continue;
     const cur = sel.value;
     sel.innerHTML = opts;
@@ -82,17 +98,24 @@ $("#defaultDonor").addEventListener("change", () => {
 async function loadDonors() {
   await loadDonorsAndSettings();
   const list = $("#donorList");
-  list.innerHTML = DONORS.map(d => `
+  list.innerHTML = DONORS.map(d => {
+    const parts = [];
+    if (d.item_count) parts.push(`${d.item_count} item${d.item_count===1?"":"s"} · ${fmt(d.items_value)}`);
+    if (d.cash_count) parts.push(`${d.cash_count} cash gift${d.cash_count===1?"":"s"} · ${fmt(d.cash_value)}`);
+    const breakdown = parts.length ? parts.join(" • ") : "No donations yet";
+    return `
     <div class="donor-item" data-id="${d.id}">
       <div>
         <div class="name">${escapeHTML(d.name)}</div>
-        <div class="stats">${d.item_count} items · ${fmt(d.total_value)}</div>
+        <div class="stats">${breakdown}</div>
+        ${parts.length > 1 ? `<div class="stats" style="margin-top:.15rem"><b style="color:var(--accent-2)">Total: ${fmt(d.total_value)}</b></div>` : ""}
       </div>
       <div style="display:flex;gap:.4rem">
         <button class="rename">Rename</button>
         <button class="danger del">Delete</button>
       </div>
-    </div>`).join("") ||
+    </div>`;
+  }).join("") ||
     `<p class="hint">No donors yet. Add one above and pick it as the default on the Add tab.</p>`;
   list.querySelectorAll(".donor-item").forEach(row => {
     const id = Number(row.dataset.id);
@@ -119,6 +142,133 @@ $("#donorForm").addEventListener("submit", async e => {
   if (!r.ok) { alert("Failed: " + await r.text()); return; }
   e.target.reset();
   loadDonors();
+});
+
+// ---------- cash donations ----------
+async function loadCash() {
+  const r = await fetch("/api/cash");
+  const list = await r.json();
+  const total = list.reduce((s, c) => s + (c.amount || 0), 0);
+  $("#cashTotal").textContent = `${list.length} donations · ${fmt(total)} total`;
+  const el = $("#cashList");
+  el.innerHTML = list.map(c => {
+    const tags = [
+      `<span class="tag">${escapeHTML(c.donation_date)}</span>`,
+      `<span class="tag">${escapeHTML(c.payment_method || "—")}</span>`,
+      c.donor_name ? `<span class="donor">👤 ${escapeHTML(c.donor_name)}</span>` : "",
+      c.notes ? `<span title="${escapeHTML(c.notes)}">📝 ${escapeHTML(c.notes.length > 40 ? c.notes.slice(0,40)+"…" : c.notes)}</span>` : "",
+    ].filter(Boolean).join("");
+    const actions = [
+      `<button type="button" class="edit" data-id="${c.id}">Edit</button>`,
+      c.receipt_url ? `<a href="${escapeHTML(c.receipt_url)}" target="_blank" rel="noopener">📎 View receipt</a>` : "",
+      `<button type="button" class="del" data-id="${c.id}">Delete</button>`,
+    ].filter(Boolean).join("");
+    return `
+      <div class="cash-row">
+        <div class="who">${escapeHTML(c.charity_name)}</div>
+        <div class="amt">${fmt(c.amount)}</div>
+        <div class="meta-line">${tags}</div>
+        <div class="actions">${actions}</div>
+      </div>`;
+  }).join("") ||
+    `<p class="hint">No cash donations yet.</p>`;
+  el.querySelectorAll(".cash-row .del").forEach(btn => {
+    btn.addEventListener("click", async e => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.id);
+      const c = list.find(x => x.id === id);
+      if (!confirm(`Delete the ${fmt(c.amount)} gift to ${c.charity_name}?`)) return;
+      await fetch(`/api/cash/${id}`, { method: "DELETE" });
+      loadCash();
+    });
+  });
+  el.querySelectorAll(".cash-row .edit").forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.id);
+      openCashEdit(list.find(x => x.id === id));
+    });
+  });
+}
+
+function openCashEdit(c) {
+  const f = $("#cashEditForm");
+  f.elements.id.value = c.id;
+  f.elements.charity_name.value = c.charity_name || "";
+  f.elements.amount.value = c.amount ?? "";
+  f.elements.donation_date.value = c.donation_date || "";
+  f.elements.payment_method.value = c.payment_method || "cash";
+  f.elements.donor_id.value = c.donor_id || "";
+  f.elements.charity_address.value = c.charity_address || "";
+  f.elements.notes.value = c.notes || "";
+  const rc = $("#cashEditReceiptCurrent");
+  if (c.receipt_url) {
+    const isImg = /\.(jpg|jpeg|png|webp|gif|heic)$/i.test(c.receipt_url);
+    rc.classList.remove("empty");
+    rc.innerHTML = (isImg
+      ? `<img class="thumb" src="${escapeHTML(c.receipt_url)}" alt="receipt">`
+      : `<span style="font-size:1.4rem">📄</span>`)
+      + `<span>Current receipt — <a href="${escapeHTML(c.receipt_url)}" target="_blank">open</a></span>`;
+  } else {
+    rc.classList.add("empty");
+    rc.textContent = "No receipt attached yet.";
+  }
+  // Reset file picker and the "remove" checkbox each time the modal opens
+  f.elements.receipt.value = "";
+  f.elements.remove_receipt.checked = false;
+  $("#cashRemoveReceiptWrap").style.display = c.receipt_url ? "" : "none";
+  $("#cashEditModal").classList.remove("hidden");
+}
+
+$("#cashEditForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  const id = f.elements.id.value;
+  const fd = new FormData();
+  for (const k of ["charity_name","amount","donation_date","payment_method",
+                   "donor_id","charity_address","notes"]) {
+    fd.append(k, f.elements[k].value);
+  }
+  // Receipt file (only if user picked one)
+  if (f.elements.receipt.files && f.elements.receipt.files[0]) {
+    fd.append("receipt", f.elements.receipt.files[0]);
+  }
+  if (f.elements.remove_receipt.checked) {
+    fd.append("remove_receipt", "true");
+  }
+  const r = await fetch(`/api/cash/${id}`, { method: "PATCH", body: fd });
+  if (!r.ok) { alert("Save failed: " + await r.text()); return; }
+  closeModals();
+  loadCash();
+});
+
+$("#cashEditDelete").addEventListener("click", async () => {
+  const id = $("#cashEditForm").elements.id.value;
+  if (!confirm("Delete this cash gift?")) return;
+  await fetch(`/api/cash/${id}`, { method: "DELETE" });
+  closeModals();
+  loadCash();
+});
+
+$("#cashForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  if (!fd.get("donation_date")) fd.set("donation_date", new Date().toISOString().slice(0, 10));
+  // Use the per-device "Donating as" picker from the top of the Add tab
+  const def = $("#defaultDonor").value || getDefaultDonorId();
+  if (def) fd.set("donor_id", def);
+  const status = $("#cashStatus");
+  status.classList.remove("hidden", "error");
+  status.textContent = "Saving…";
+  const r = await fetch("/api/cash", { method: "POST", body: fd });
+  if (!r.ok) {
+    status.classList.add("error");
+    status.textContent = "Failed: " + await r.text();
+    return;
+  }
+  status.textContent = "Saved.";
+  e.target.reset();
+  loadCash();
 });
 
 // ---------- capture (multi-file, async) ----------
@@ -305,6 +455,8 @@ async function openItem(id) {
   f.elements.estimated_value.value = it.estimated_value ?? "";
   f.elements.notes.value = it.notes || "";
   f.elements.donor_id.value = it.donor_id || "";
+  f.elements.value_overridden.value = it.value_overridden ? "true" : "false";
+  applyValueModeUI();
   $("#modalImg").src = it.image_url;
   $("#modalDate").textContent = it.created_at ? `Photo uploaded ${formatDate(it.created_at)}` : "";
   $("#analyzingBanner").classList.toggle("hidden", it.status !== "analyzing");
@@ -340,9 +492,10 @@ function updateCalcBox() {
 
   const condLine = `<div class="row2"><span>Condition <span class="pick">${escapeHTML(cond)}</span> &rarr; uses the <b>${condBucket}</b> bucket</span><span>${tableValue != null ? fmt(tableValue) : "—"}</span></div>`;
 
-  const overrideLine = usingOverride
-    ? `<div class="row2"><span>You overrode the per-unit value</span><span><b>${fmt(userVal)}</b></span></div>`
-    : "";
+  const isOverride = $("#itemForm").elements.value_overridden.value === "true";
+  const overrideLine = isOverride
+    ? `<div class="row2"><span style="color:var(--accent)">Manual override</span><span><b>${fmt(perUnit)}</b> per unit</span></div>`
+    : `<div class="row2"><span style="color:var(--accent-2)">Auto from category + condition</span><span><b>${fmt(tableValue || 0)}</b> per unit</span></div>`;
 
   const formula = `<div class="formula">${fmt(perUnit)} &times; ${qty} qty = <b>${fmt(subtotal)}</b></div>`;
   const src = `<div class="src">Source: bundled valuation table from the Salvation Army &amp; Goodwill guides per <a href="/sources" target="_blank">IRS Pub. 561</a>. ${it.category_key === "other_misc" ? "(Falling back to <i>Miscellaneous</i> — pick a more specific category to improve the estimate.)" : ""}</div>`;
@@ -359,21 +512,70 @@ function updateFmvHint() {
 }
 ["change","input"].forEach(ev => {
   $("#itemForm").addEventListener(ev, e => {
-    if (["category_key","condition","quantity","estimated_value"].includes(e.target.name)) {
-      updateCalcBox();
+    const name = e.target.name;
+    if (!["category_key","condition","quantity","estimated_value"].includes(name)) return;
+    // In auto mode, recompute the live value when category/condition change.
+    if ($("#itemForm").elements.value_overridden.value !== "true"
+        && ["category_key","condition"].includes(name)) {
+      syncAutoValue();
     }
-    if (e.target.name === "category_key") updateFmvHint();
+    updateCalcBox();
+    if (name === "category_key") updateFmvHint();
   });
 });
+
+function applyValueModeUI() {
+  const f = $("#itemForm");
+  const overridden = f.elements.value_overridden.value === "true";
+  const inp = f.elements.estimated_value;
+  const badge = $("#valueBadge");
+  if (overridden) {
+    inp.disabled = false;
+    inp.classList.remove("locked");
+    inp.removeAttribute("title");
+    if (badge) { badge.textContent = "manual · click for auto"; badge.className = "value-badge manual"; }
+  } else {
+    inp.disabled = true;
+    inp.classList.add("locked");
+    inp.setAttribute("title", "Auto-calculated. Click the badge to override.");
+    if (badge) { badge.textContent = "auto · click to override"; badge.className = "value-badge auto"; }
+    syncAutoValue();
+  }
+}
+
+// Clicking the badge toggles auto / manual.
+$("#valueBadge").addEventListener("click", () => {
+  const f = $("#itemForm");
+  const cur = f.elements.value_overridden.value === "true";
+  f.elements.value_overridden.value = cur ? "false" : "true";
+  applyValueModeUI();
+  // Going auto -> manual on an empty field: seed with the auto value.
+  if (!cur && !f.elements.estimated_value.value) syncAutoValue();
+  updateCalcBox();
+});
+
+function syncAutoValue() {
+  const f = $("#itemForm");
+  const cat = CATEGORIES.find(c => c.key === f.elements.category_key.value);
+  const cond = f.elements.condition.value;
+  if (!cat) return;
+  const v = cond === "excellent" ? cat.high : cond === "fair" ? cat.low : cat.median;
+  if (v != null) f.elements.estimated_value.value = v;
+}
 
 $("#itemForm").addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
   const id = f.elements.id.value;
   const fd = new FormData();
-  for (const k of ["description", "category_key", "condition", "quantity", "estimated_value", "notes", "donor_id"]) {
+  for (const k of ["description", "category_key", "condition", "quantity", "notes", "donor_id"]) {
     fd.append(k, f.elements[k].value);
   }
+  // Only send estimated_value when in override mode; disabled fields are skipped
+  // by FormData anyway, but be explicit.
+  const overridden = f.elements.value_overridden.value === "true";
+  fd.append("value_overridden", overridden ? "true" : "false");
+  if (overridden) fd.append("estimated_value", f.elements.estimated_value.value);
   const r = await fetch(`/api/items/${id}`, { method: "PATCH", body: fd });
   if (!r.ok) { alert("Save failed: " + await r.text()); return; }
   const updated = await r.json();
@@ -392,6 +594,18 @@ $("#deleteItem").addEventListener("click", async () => {
   renderRecent();
   closeModals();
   loadItems();
+});
+
+$("#reanalyzeItem").addEventListener("click", async () => {
+  const id = Number($("#itemForm").elements.id.value);
+  if (!confirm("Re-run the AI on this photo? Your current description, category, condition, and value will be overwritten.")) return;
+  const r = await fetch(`/api/items/${id}/reanalyze`, { method: "POST" });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  PENDING.add(id);
+  if (RECENT.has(id)) { const it = RECENT.get(id); it.status = "analyzing"; }
+  closeModals();
+  startPolling();
+  if (!$("#view-items").classList.contains("hidden")) loadItems();
 });
 
 // ---------- events ----------
@@ -427,51 +641,69 @@ async function loadEvents() {
 async function openEvent(id) {
   CURRENT_EVENT = id;
   SELECTED.clear();
+  // Refresh the underlying drop-off list in the background so totals are
+  // up-to-date the moment the user closes the modal.
+  loadEvents();
   const [evRes, unRes] = await Promise.all([
     fetch(`/api/events/${id}`),
     fetch(`/api/items?unassigned=true`),
   ]);
   const ev = await evRes.json();
   const unassigned = await unRes.json();
-  $("#evTitle").textContent = `${ev.charity_name}`;
-  $("#evMeta").textContent = `${ev.donation_date}${ev.charity_address ? " · " + ev.charity_address : ""}`;
-  $("#evTotal").textContent = `${ev.item_count} · ${fmt(ev.total_value)}`;
-  $("#evItems").innerHTML = ev.items.map(renderCard).join("") ||
-    `<p style="color:var(--muted)">No items in this drop-off yet.</p>`;
-  $("#evItems").querySelectorAll(".card").forEach(c => {
+
+  $("#evTitle").textContent = ev.charity_name;
+  const dateLabel = formatLongDate(ev.donation_date);
+  const parts = [dateLabel];
+  if (ev.charity_address) parts.push(ev.charity_address);
+  $("#evMeta").textContent = parts.join(" · ");
+  const itemWord = ev.item_count === 1 ? "item" : "items";
+  $("#evTotal").textContent = `${ev.item_count} ${itemWord} · ${fmt(ev.total_value)} total`;
+
+  // In-drop-off items: tap to remove instantly.
+  const evItemsEl = $("#evItems");
+  evItemsEl.dataset.empty = "Nothing in this drop-off yet — tap a card below to add it.";
+  evItemsEl.innerHTML = ev.items.map(renderCard).join("");
+  evItemsEl.querySelectorAll(".card").forEach(c => {
     c.addEventListener("click", async () => {
-      if (!confirm("Remove this item from the drop-off?")) return;
+      c.classList.add("removing");
       const fd = new FormData(); fd.append("item_ids", c.dataset.id);
-      await fetch(`/api/events/${id}/unassign`, { method: "POST", body: fd });
+      const r = await fetch(`/api/events/${id}/unassign`, { method: "POST", body: fd });
+      if (!r.ok) { alert("Failed: " + await r.text()); c.classList.remove("removing"); return; }
       openEvent(id);
     });
   });
-  const un = $("#evUnassigned");
-  un.innerHTML = unassigned.map(renderCard).join("") ||
-    `<p style="color:var(--muted)">Nothing unassigned.</p>`;
-  un.querySelectorAll(".card").forEach(c => {
-    c.addEventListener("click", () => {
-      const id2 = c.dataset.id;
-      if (SELECTED.has(id2)) { SELECTED.delete(id2); c.classList.remove("selected"); }
-      else { SELECTED.add(id2); c.classList.add("selected"); }
+
+  // Available items: tap to add instantly.
+  const unEl = $("#evUnassigned");
+  unEl.dataset.empty = "Everything's been assigned somewhere — snap more photos on the Add tab.";
+  unEl.innerHTML = unassigned.map(renderCard).join("");
+  unEl.querySelectorAll(".card").forEach(c => {
+    c.addEventListener("click", async () => {
+      c.classList.add("removing");
+      const fd = new FormData(); fd.append("item_ids", c.dataset.id);
+      const r = await fetch(`/api/events/${id}/assign`, { method: "POST", body: fd });
+      if (!r.ok) { alert("Failed: " + await r.text()); c.classList.remove("removing"); return; }
+      openEvent(id);
     });
   });
+
+  // Hide the "Add all" button if there's nothing to add.
+  $("#donateAllBtn").style.display = unassigned.length ? "" : "none";
+
   $("#receiptLink").href = `/receipt/${id}`;
   $("#eventModal").classList.remove("hidden");
+}
+
+function formatLongDate(s) {
+  if (!s) return "";
+  const d = new Date(s + "T00:00:00");
+  if (isNaN(d)) return s;
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "long", day: "numeric", year: "numeric" });
 }
 
 $("#donateAllBtn").addEventListener("click", async () => {
   const r = await fetch(`/api/events/${CURRENT_EVENT}/assign_all_unassigned`, { method: "POST" });
   if (!r.ok) { alert("Failed: " + await r.text()); return; }
-  const result = await r.json();
-  openEvent(CURRENT_EVENT);
-  if (result.moved === 0) alert("Nothing to add — there are no unassigned items.");
-});
-$("#addSelectedBtn").addEventListener("click", async () => {
-  if (!SELECTED.size) return;
-  const fd = new FormData();
-  fd.append("item_ids", [...SELECTED].join(","));
-  await fetch(`/api/events/${CURRENT_EVENT}/assign`, { method: "POST", body: fd });
   openEvent(CURRENT_EVENT);
 });
 $("#deleteEventBtn").addEventListener("click", async () => {
@@ -500,6 +732,8 @@ function escapeHTML(s) {
 // ---------- boot ----------
 loadCategories();
 loadDonorsAndSettings();
+// Restore Add-tab mode (item vs cash) from last session
+try { setAddMode(localStorage.getItem("dt.addMode") || "item"); } catch {}
 let _saved = location.hash.replace(/^#/, "");
 if (!$(`#view-${_saved}`)) {
   try { _saved = localStorage.getItem("dt.activeTab") || ""; } catch {}

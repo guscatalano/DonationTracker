@@ -53,13 +53,28 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS cash_donations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    donation_date TEXT NOT NULL,
+    charity_name TEXT NOT NULL,
+    charity_address TEXT,
+    amount REAL NOT NULL,
+    payment_method TEXT NOT NULL DEFAULT 'cash',
+    donor_id INTEGER REFERENCES donors(id) ON DELETE SET NULL,
+    receipt_filename TEXT,
+    notes TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_items_event ON items(event_id);
+CREATE INDEX IF NOT EXISTS idx_cash_date ON cash_donations(donation_date);
 """
 
 # Idempotent migrations for older DBs. Run AFTER SCHEMA so the column exists
 # before the index that references it. Each statement is best-effort.
 _MIGRATIONS = [
     "ALTER TABLE items ADD COLUMN donor_id INTEGER REFERENCES donors(id) ON DELETE SET NULL",
+    "ALTER TABLE items ADD COLUMN value_overridden INTEGER NOT NULL DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS idx_items_donor ON items(donor_id)",
 ]
 

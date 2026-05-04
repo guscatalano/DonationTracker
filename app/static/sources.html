@@ -14,6 +14,15 @@
   border-radius: 8px; padding: .8rem 1rem; margin: .6rem 0; }
 .src-card a { color: var(--accent); }
 .src-card .note { color: var(--muted); margin-top: .3rem; font-size: .9rem; }
+#status .ok { color: var(--accent-2); font-weight: 600; }
+#status .err { color: var(--danger); font-weight: 600; }
+#status .row { display: flex; justify-content: space-between; gap: 1rem;
+  padding: .25rem 0; border-bottom: 1px solid var(--border); }
+#status .row:last-child { border-bottom: none; }
+#status .label { color: var(--muted); }
+#status button { background: var(--accent); color: #0b1a25; border: none;
+  padding: .4rem .8rem; border-radius: 6px; font-size: .85rem; cursor: pointer;
+  margin-top: .5rem; font-weight: 600; }
 .cat-table { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .9rem; }
 .cat-table th, .cat-table td { padding: .3rem .5rem; border-bottom: 1px solid var(--border); }
 .cat-table th { background: var(--panel-2); text-align: left; }
@@ -26,7 +35,49 @@
 <body>
 <div class="doc">
   <p><a class="back" href="/">← Back to app</a></p>
-  <h1>Where the dollar amounts come from</h1>
+  <h1>About &amp; sources</h1>
+
+  <h2>Connection status</h2>
+  <div id="status" class="src-card">Checking…</div>
+
+  <h2>LLM endpoint</h2>
+  <p class="note" style="color:var(--muted);font-size:.9rem">
+    Any OpenAI-compatible <code>/v1</code> endpoint with vision support — Ollama, LM Studio, vLLM, llama.cpp, etc.
+    Saved to the database, so it persists across restarts.
+  </p>
+  <div class="src-card">
+    <form id="llmForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <input id="llmUrl" type="url" required
+             style="flex:1 1 320px;min-width:0;background:var(--panel-2);color:var(--text);
+                    border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem"
+             placeholder="http://192.168.1.50:11434/v1">
+      <button type="submit">Save &amp; test</button>
+      <button type="button" id="llmReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Reset to default</button>
+    </form>
+    <div id="llmInfo" class="note" style="margin-top:.5rem"></div>
+  </div>
+
+  <h2>Vision model</h2>
+  <p class="note" style="color:var(--muted);font-size:.9rem">
+    Pin a specific model on the endpoint above. Leave blank to auto-detect the
+    first vision-capable model on each request. Changes apply immediately.
+  </p>
+  <div class="src-card">
+    <form id="modelForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <select id="modelPicker"
+              style="flex:1 1 220px;min-width:0;background:var(--panel-2);color:var(--text);
+                     border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
+      </select>
+      <input id="modelCustom" type="text" placeholder="…or type a custom model name"
+             style="flex:1 1 220px;min-width:0;background:var(--panel-2);color:var(--text);
+                    border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
+      <button type="submit">Save &amp; test</button>
+      <button type="button" id="modelReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Auto-detect</button>
+    </form>
+    <div id="modelInfo" class="note" style="margin-top:.5rem"></div>
+  </div>
+
+  <h2>Where the dollar amounts come from</h2>
   <p id="methodology"></p>
 
   <h2>Authoritative references</h2>
@@ -57,6 +108,136 @@
 <script>
 function escape(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 const fmt = n => "$" + Number(n).toFixed(2);
+
+async function checkStatus() {
+  const el = document.getElementById("status");
+  el.innerHTML = `<div class="row"><span class="label">Vision LLM</span><span>checking… (max 10s)</span></div>`;
+  const t0 = performance.now();
+  // Hard cap so the UI never sits on "checking" indefinitely.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    const r = await fetch("/api/health?timeout=6", { signal: ctrl.signal });
+    clearTimeout(timer);
+    const dt_ms = Math.round(performance.now() - t0);
+    const j = await r.json();
+    if (r.ok && j.ok) {
+      el.innerHTML = `
+        <div class="row"><span class="label">Vision LLM</span><span class="ok">✓ Connected</span></div>
+        <div class="row"><span class="label">Model</span><span><code>${escape(j.model)}</code>${j.available_count ? ` <span style="color:var(--muted);font-size:.8rem">(${j.available_count} loaded)</span>` : ""}</span></div>
+        <div class="row"><span class="label">Endpoint</span><span><code>${escape(j.llm_base_url)}</code></span></div>
+        <div class="row"><span class="label">Latency</span><span>${dt_ms} ms</span></div>
+        <div class="row"><span class="label">Last checked</span><span>${new Date().toLocaleTimeString()}</span></div>
+        <button onclick="checkStatus()">Re-check</button>`;
+    } else {
+      el.innerHTML = `
+        <div class="row"><span class="label">Vision LLM</span><span class="err">✗ Not reachable</span></div>
+        <div class="row"><span class="label">Endpoint</span><span><code>${escape(j.llm_base_url || "?")}</code></span></div>
+        <div class="row"><span class="label">Error</span><span>${escape(j.error || ("HTTP " + r.status))}</span></div>
+        <div class="row"><span class="label">Latency</span><span>${dt_ms} ms</span></div>
+        <div class="row"><span class="label">Last checked</span><span>${new Date().toLocaleTimeString()}</span></div>
+        <button onclick="checkStatus()">Re-check</button>
+        <p class="note" style="margin-top:.5rem">Edit the LLM endpoint below, then re-check. The default is <code>http://localhost:11434/v1</code> (Ollama).</p>`;
+    }
+  } catch (e) {
+    clearTimeout(timer);
+    const dt_ms = Math.round(performance.now() - t0);
+    const msg = e.name === "AbortError"
+      ? `request timed out after ${dt_ms} ms`
+      : `${e.name}: ${e.message}`;
+    el.innerHTML = `
+      <div class="row"><span class="label">Vision LLM</span><span class="err">✗ ${escape(msg)}</span></div>
+      <div class="row"><span class="label">Last checked</span><span>${new Date().toLocaleTimeString()}</span></div>
+      <button onclick="checkStatus()">Re-check</button>`;
+  }
+}
+checkStatus();
+
+async function loadLlmSettings() {
+  const r = await fetch("/api/settings/llm_base_url");
+  const j = await r.json();
+  document.getElementById("llmUrl").value = j.current || "";
+  const info = document.getElementById("llmInfo");
+  info.innerHTML = j.persisted
+    ? `Currently using a saved override. Default from environment: <code>${escape(j.default)}</code>.`
+    : `Using the default from environment / config: <code>${escape(j.default)}</code>.`;
+}
+
+document.getElementById("llmForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const url = document.getElementById("llmUrl").value.trim();
+  const fd = new FormData(); fd.append("url", url);
+  const r = await fetch("/api/settings/llm_base_url", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  await loadLlmSettings();
+  await checkStatus();
+});
+
+document.getElementById("llmReset").addEventListener("click", async () => {
+  const fd = new FormData(); fd.append("url", "");
+  const r = await fetch("/api/settings/llm_base_url", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  await loadLlmSettings();
+  await checkStatus();
+});
+
+loadLlmSettings();
+
+async function loadModelSettings() {
+  const r = await fetch("/api/settings/llm_model");
+  const j = await r.json();
+  const sel = document.getElementById("modelPicker");
+  const avail = j.available || [];
+  const visionCount = avail.filter(m => m.vision_capable).length;
+  const visionGroup = avail.filter(m => m.vision_capable)
+    .map(m => `<option value="${escape(m.id)}">👁 ${escape(m.id)}  — vision</option>`).join("");
+  const otherGroup = avail.filter(m => !m.vision_capable)
+    .map(m => `<option value="${escape(m.id)}">${escape(m.id)}  — text only</option>`).join("");
+  sel.innerHTML = `<option value="">— auto-detect (vision-capable) —</option>`
+    + (visionGroup ? `<optgroup label="Vision-capable">${visionGroup}</optgroup>` : "")
+    + (otherGroup ? `<optgroup label="Text only (not recommended)">${otherGroup}</optgroup>` : "");
+  const ids = avail.map(m => m.id);
+  const cur = j.override || "";
+  if (cur && ids.includes(cur)) {
+    sel.value = cur;
+    document.getElementById("modelCustom").value = "";
+  } else {
+    sel.value = "";
+    document.getElementById("modelCustom").value = cur;
+  }
+  const curIsVision = cur && avail.find(m => m.id === cur)?.vision_capable;
+  const curWarning = cur && ids.includes(cur) && !curIsVision
+    ? ` <span style="color:var(--danger)">⚠ this model doesn't look vision-capable; image analysis will likely fail.</span>`
+    : "";
+  document.getElementById("modelInfo").innerHTML =
+    j.override
+      ? `Pinned to <code>${escape(j.override)}</code>.${curWarning}`
+      : (avail.length
+          ? `Auto-detect from ${avail.length} loaded model${avail.length===1?"":"s"} — ${visionCount} vision-capable. 👁 marks vision support.`
+          : `Endpoint isn't reachable yet, so the dropdown is empty — type a name or fix the endpoint above.`);
+}
+
+document.getElementById("modelForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const custom = document.getElementById("modelCustom").value.trim();
+  const picked = document.getElementById("modelPicker").value;
+  const model = custom || picked;
+  const fd = new FormData(); fd.append("model", model);
+  const r = await fetch("/api/settings/llm_model", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  await loadModelSettings();
+  await checkStatus();
+});
+
+document.getElementById("modelReset").addEventListener("click", async () => {
+  const fd = new FormData(); fd.append("model", "");
+  const r = await fetch("/api/settings/llm_model", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  await loadModelSettings();
+  await checkStatus();
+});
+
+loadModelSettings();
 
 fetch("/api/sources").then(r => r.json()).then(d => {
   document.getElementById("methodology").textContent = d.methodology;
