@@ -374,6 +374,9 @@
       <p>Built by <a href="https://github.com/guscatalano" target="_blank" rel="noopener">Gus Catalano</a>.
          Source on <a href="https://github.com/guscatalano/DonationTracker" target="_blank" rel="noopener">GitHub</a>.
          Issues, PRs, and forks welcome.</p>
+      <p style="margin:.5rem 0 0">
+        <b>Version:</b> <span id="aboutVersion" style="color:var(--muted)">checking…</span>
+      </p>
       <p class="note">
         Pair-coded with <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener">Claude Code</a>
         (Anthropic's Claude Opus 4.7), which wrote a lot of the routing,
@@ -794,6 +797,16 @@ async function loadUpdateStatus() {
   document.getElementById("updateEnabled").checked = !!j.enabled;
   document.getElementById("updateInterval").value = j.interval_hours;
   const local = j.local || {};
+  // Mirror the version into the About section.
+  const verEl = document.getElementById("aboutVersion");
+  if (verEl) {
+    if (local.short) {
+      const date = local.date ? new Date(local.date).toLocaleDateString() : "";
+      verEl.innerHTML = `<a href="https://github.com/guscatalano/DonationTracker/commit/${escape(local.sha)}" target="_blank" rel="noopener"><code>${escape(local.short)}</code></a> &middot; ${escape(local.subject || "")} ${date ? `<span style="color:var(--muted);font-size:.85em">(${escape(date)})</span>` : ""}`;
+    } else {
+      verEl.textContent = "unknown (no .git directory)";
+    }
+  }
   const dirty = j.has_local_changes
     ? `<div class="row"><span class="label">⚠ Local changes</span>
          <span style="color:var(--danger)">uncommitted edits in repo — auto-update will skip until cleared</span></div>` : "";
