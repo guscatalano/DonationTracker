@@ -7,6 +7,9 @@ __pycache__/
 venv/
 *.egg-info/
 .pytest_cache/
+.cache/
+.local/
+.config/
 
 # Project data — stays on the host, never commit
 data/

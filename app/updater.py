@@ -75,10 +75,13 @@ def remote_commit_info() -> dict | None:
 
 
 def has_local_changes() -> bool:
+    """Only count modifications to tracked files. Untracked files (pip caches,
+    log scratchpads, etc.) don't matter — git pull --ff-only never touches
+    them — so we ignore them here."""
     rdir = repo_dir()
     if not rdir:
         return False
-    r = _run(["git", "status", "--porcelain"], cwd=rdir)
+    r = _run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=rdir)
     return bool(r and r.stdout.strip())
 
 
