@@ -17,9 +17,11 @@ RestartSec=5
 # If the auto-updater pulls 5 broken commits in 5 minutes we stop trying.
 StartLimitBurst=5
 StartLimitIntervalSec=300
-# Hardening
+# Hardening — / is read-only except the install dir, which the service must
+# be able to write to so the in-app auto-updater can `git pull` and pip-install
+# updated dependencies. Without this the updater fails with EROFS on .git/FETCH_HEAD.
 ProtectSystem=strict
-ReadWritePaths=/opt/donationtracker/data
+ReadWritePaths=/opt/donationtracker
 PrivateTmp=true
 ProtectHome=true
 # Allow binding to ports < 1024 (e.g. 80 / 443) without running as root.
