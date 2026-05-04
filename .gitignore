@@ -14,6 +14,7 @@ venv/
 # Project data — stays on the host, never commit
 data/
 data_test/
+screenshots_data/
 uploads/
 *.db
 *.db-journal
