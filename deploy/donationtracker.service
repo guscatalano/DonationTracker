@@ -12,14 +12,21 @@ EnvironmentFile=-/etc/donationtracker.env
 # Wrapper script reads the DB-persisted "https_enabled" setting and
 # self-generates a cert if needed before exec-ing uvicorn with the right flags.
 ExecStart=/opt/donationtracker/deploy/run-systemd.sh
-Restart=on-failure
+Restart=always
 RestartSec=5
+# If the auto-updater pulls 5 broken commits in 5 minutes we stop trying.
+StartLimitBurst=5
+StartLimitIntervalSec=300
 # Hardening
 ProtectSystem=strict
 ReadWritePaths=/opt/donationtracker/data
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
+# Allow binding to ports < 1024 (e.g. 80 / 443) without running as root.
+# Scoped to this service only — does not affect other python invocations.
+# AmbientCapabilities requires NoNewPrivileges to be UNSET; everything else stays locked.
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target

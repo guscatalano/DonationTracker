@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 
-from . import fmv, tls, vision
+from . import fmv, tls, updater, vision
 from .db import DB_PATH, UPLOAD_DIR, init_db, tx
 
 app = FastAPI(title="Donation Tracker")
@@ -58,6 +58,24 @@ def _apply_persisted_settings() -> None:
         with tx() as conn:
             conn.execute("DELETE FROM settings WHERE key='ssl_custom'")
 _apply_persisted_settings()
+
+
+# Auto-updater background loop. Reads settings on each tick so the UI toggle
+# takes effect without a restart. Disabled by default.
+def _updater_enabled() -> bool:
+    return _get_setting("auto_update_enabled") == "1"
+
+
+def _updater_interval_hours() -> float:
+    raw = _get_setting("auto_update_interval_hours")
+    try:
+        return float(raw) if raw else updater.DEFAULT_INTERVAL_HOURS
+    except ValueError:
+        return updater.DEFAULT_INTERVAL_HOURS
+
+
+updater.start_background_loop(_updater_enabled, _updater_interval_hours)
+
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -248,6 +266,55 @@ async def set_llm_base_url(url: str = Form("")):
     new_url = vision.set_base_url(url)
     _set_setting("llm_base_url", url.strip() or None)
     return {"current": new_url, "persisted": _get_setting("llm_base_url")}
+
+
+@app.get("/api/settings/update")
+def get_update_status():
+    return {
+        "enabled": _get_setting("auto_update_enabled") == "1",
+        "interval_hours": _updater_interval_hours(),
+        "default_interval_hours": updater.DEFAULT_INTERVAL_HOURS,
+        "local": updater.local_commit_info(),
+        "has_local_changes": updater.has_local_changes(),
+    }
+
+
+@app.get("/api/settings/update/remote")
+def get_update_remote():
+    """Hits the remote — slower (3-15s). Separate endpoint so the UI page
+    load isn't blocked on a network call."""
+    return {"remote": updater.remote_commit_info()}
+
+
+@app.post("/api/settings/update")
+async def set_update(enabled: str = Form(""), interval_hours: str = Form("")):
+    if enabled:
+        val = enabled.strip().lower() in ("true", "1", "yes", "on")
+        _set_setting("auto_update_enabled", "1" if val else None)
+    if interval_hours:
+        try:
+            n = max(0.25, float(interval_hours))
+            _set_setting("auto_update_interval_hours", str(n))
+        except ValueError:
+            raise HTTPException(400, "interval_hours must be a number")
+    return get_update_status()
+
+
+@app.post("/api/settings/update/now")
+def update_now():
+    """Trigger a one-off git pull now. If anything changed the process will
+    exit so systemd brings it back with the new code; the response is sent
+    *before* exit so the UI sees success."""
+    changed, msg, after = updater.pull_now()
+    response = {"ok": True, "changed": changed, "message": msg, "local": after}
+    if changed:
+        # Schedule exit AFTER the response is flushed to the client.
+        def _bye():
+            import time, os as _os
+            time.sleep(1)
+            _os.kill(_os.getpid(), 15)  # SIGTERM, systemd restarts
+        import threading; threading.Thread(target=_bye, daemon=True).start()
+    return response
 
 
 @app.get("/api/settings/ssl")

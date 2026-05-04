@@ -312,6 +312,35 @@
       </form>
     </div>
 
+    <h2>Updates</h2>
+    <p class="note" style="color:var(--muted);font-size:.9rem">
+      Pull the latest code from the GitHub repo. Disabled by default — enable
+      only if you trust the upstream branch enough to deploy unattended.
+    </p>
+    <div id="updateStatus" class="src-card">Checking…</div>
+    <div class="src-card" style="margin-top:.5rem">
+      <form id="updateForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <label class="value-mode" style="font-size:.95rem">
+          <input type="checkbox" id="updateEnabled">
+          <span>Auto-pull from GitHub on a schedule</span>
+        </label>
+        <label style="font-size:.85rem;color:var(--muted);display:inline-flex;align-items:center;gap:.35rem">
+          every
+          <input id="updateInterval" type="number" min="0.25" step="0.25" value="24"
+                 style="width:5rem;background:var(--panel-2);color:var(--text);
+                        border:1px solid var(--border);border-radius:6px;
+                        padding:.35rem .55rem;font-size:.9rem">
+          hours
+        </label>
+        <button type="submit">Save</button>
+        <button type="button" id="updateNow"
+                style="background:var(--panel-2);color:var(--accent);border:1px solid var(--accent)">
+          Check &amp; pull now
+        </button>
+      </form>
+      <div id="updateInfo" class="note" style="margin-top:.55rem"></div>
+    </div>
+
     <h2>Factory reset</h2>
     <p style="color:var(--muted);font-size:.9rem">
       Wipe every item, drop-off, donor, cash gift, FMV override, setting, and
@@ -757,6 +786,50 @@ document.getElementById("resetAllFmv").addEventListener("click", async () => {
 });
 
 loadSources();
+
+// ---- Updates ----
+async function loadUpdateStatus() {
+  const r = await fetch("/api/settings/update");
+  const j = await r.json();
+  document.getElementById("updateEnabled").checked = !!j.enabled;
+  document.getElementById("updateInterval").value = j.interval_hours;
+  const local = j.local || {};
+  const dirty = j.has_local_changes
+    ? `<div class="row"><span class="label">⚠ Local changes</span>
+         <span style="color:var(--danger)">uncommitted edits in repo — auto-update will skip until cleared</span></div>` : "";
+  document.getElementById("updateStatus").innerHTML = `
+    <div class="row"><span class="label">Auto-update</span>
+      <span>${j.enabled?'<b style="color:var(--accent-2)">enabled</b>':'<b style="color:var(--muted)">disabled (default)</b>'}</span></div>
+    <div class="row"><span class="label">Installed commit</span>
+      <span><code style="font-size:.8rem">${escape(local.short || "?")}</code> ${escape(local.subject || "")}</span></div>
+    <div class="row"><span class="label">Committed at</span>
+      <span>${local.date ? new Date(local.date).toLocaleString() : "—"}</span></div>
+    ${dirty}`;
+}
+document.getElementById("updateForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("enabled", document.getElementById("updateEnabled").checked ? "true" : "false");
+  fd.append("interval_hours", document.getElementById("updateInterval").value);
+  const r = await fetch("/api/settings/update", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  loadUpdateStatus();
+});
+document.getElementById("updateNow").addEventListener("click", async () => {
+  const info = document.getElementById("updateInfo");
+  info.style.color = "var(--muted)"; info.textContent = "Pulling…";
+  const r = await fetch("/api/settings/update/now", { method: "POST" });
+  if (!r.ok) { info.style.color = "var(--danger)"; info.textContent = "Failed: " + await r.text(); return; }
+  const j = await r.json();
+  info.style.color = j.changed ? "var(--accent-2)" : "var(--muted)";
+  info.textContent = j.message + (j.changed ? " — restarting service…" : "");
+  if (j.changed) {
+    setTimeout(() => location.reload(), 4000);
+  } else {
+    loadUpdateStatus();
+  }
+});
+loadUpdateStatus();
 
 // ---- SSL / HTTPS ----
 async function loadSslStatus() {
