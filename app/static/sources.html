@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sources & Methodology — Donation Tracker</title>
+<title>Settings — Donation Tracker</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
 .doc { background: var(--panel); max-width: 880px; margin: 1.5rem auto;
@@ -29,59 +29,117 @@
 .cat-table td.num, .cat-table th.num { text-align: right; }
 .cat-table .group-row td { background: var(--panel-2); font-weight: 600;
   color: var(--accent); padding-top: .6rem; }
+.cat-table input.fmv-cell { width: 5rem; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px; padding: .2rem .35rem;
+  text-align: right; font-size: .9rem; font-family: inherit; }
+.cat-table input.fmv-cell:focus { outline: 1px solid var(--accent); }
+.cat-table tr.overridden td { background: rgba(56,189,248,.1); }
+.cat-table tr.overridden td:first-child {
+  border-left: 3px solid var(--accent); padding-left: .35rem; }
+.cat-table .fmv-cell-changed { color: var(--accent); font-weight: 700; }
+.cat-table .fmv-was { color: var(--muted); font-size: .7rem; display: block;
+  text-decoration: line-through; line-height: 1.1; margin-top: .1rem; }
+.cat-table tr.overridden input.fmv-cell { border-color: var(--accent); }
+.cat-table .custom-tag { background: rgba(56,189,248,.2); color: var(--accent);
+  font-size: .65rem; font-weight: 700; padding: .1rem .4rem; border-radius: 999px;
+  margin-left: .35rem; text-transform: uppercase; letter-spacing: .05em;
+  vertical-align: middle; }
+.cat-table tr.dirty input.fmv-cell { border-color: var(--accent-2); background: rgba(34,197,94,.08); }
+.cat-table .row-actions { display: flex; gap: .25rem; justify-content: flex-end; }
+.cat-table .row-actions button { background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); padding: .15rem .55rem; border-radius: 4px;
+  font-size: .75rem; cursor: pointer; font-family: inherit; }
+.cat-table .row-actions button:disabled { opacity: .35; cursor: default; }
+.cat-table .row-actions button.save { background: var(--accent); color: #0b1a25;
+  border-color: var(--accent); font-weight: 600; }
+.cat-table .row-actions button.reset { color: var(--muted); }
 .back { color: var(--accent); text-decoration: none; }
+.settings-nav { display: flex; gap: .5rem; margin: .5rem 0 1.5rem;
+  background: var(--panel-2); border-radius: 8px; padding: .25rem;
+  border: 1px solid var(--border); }
+.settings-nav button { flex: 1; background: transparent !important; color: var(--muted) !important;
+  border: none !important; padding: .7rem 1rem; border-radius: 6px;
+  font-size: .95rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: background .1s, color .1s; }
+.settings-nav button.active { background: var(--accent) !important; color: #0b1a25 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.settings-nav button:not(.active):hover { color: var(--text) !important; }
+.settings-section { display: none; }
+.settings-section.active { display: block; }
+.section-intro { color: var(--muted); font-size: .9rem;
+  background: var(--panel-2); padding: .65rem .9rem; border-left: 3px solid var(--accent);
+  border-radius: 4px; margin: 0 0 1.25rem; }
+#donorForm input { font-family: inherit; }
+.donor-list-row { display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center; gap: .85rem;
+  background: var(--panel); border: 1px solid var(--border);
+  padding: .7rem .9rem; border-radius: 8px; margin-bottom: .45rem; }
+.donor-list-row .avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  color: #0b1a25; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1rem; flex: 0 0 auto;
+  text-transform: uppercase;
+}
+.donor-list-row .info { min-width: 0; }
+.donor-list-row .name { font-weight: 600; font-size: 1rem; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.donor-list-row .stats { color: var(--muted); font-size: .8rem;
+  margin-top: .15rem; line-height: 1.3; }
+.donor-list-row .stats b { color: var(--accent-2); }
+.donor-list-row .actions { display: flex; gap: .35rem; flex: 0 0 auto; }
+.donor-list-row .actions button {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); padding: .3rem .65rem;
+  border-radius: 5px; font-size: .78rem; cursor: pointer; font-family: inherit; }
+.donor-list-row .actions .del {
+  background: transparent; color: var(--danger); border-color: var(--danger); }
+.donor-list-row .actions .del:hover { background: rgba(239,68,68,.1); }
+.export-link { display: inline-flex; align-items: center; gap: .4rem;
+  color: var(--accent); background: transparent;
+  border: 1px solid var(--accent); padding: .55rem 1rem;
+  border-radius: 6px; text-decoration: none;
+  font-weight: 600; font-size: .9rem; font-family: inherit; }
+.export-link:hover { background: rgba(56,189,248,.12); }
 </style>
 </head>
 <body>
 <div class="doc">
   <p><a class="back" href="/">← Back to app</a></p>
-  <h1>About &amp; sources</h1>
+  <h1>Settings</h1>
 
-  <h2>Connection status</h2>
-  <div id="status" class="src-card">Checking…</div>
+  <nav class="settings-nav" role="tablist">
+    <button type="button" class="settings-tab active" data-section="donation">💵 Donation</button>
+    <button type="button" class="settings-tab" data-section="technical">⚙️ Technical</button>
+  </nav>
 
-  <h2>LLM endpoint</h2>
-  <p class="note" style="color:var(--muted);font-size:.9rem">
-    Any OpenAI-compatible <code>/v1</code> endpoint with vision support — Ollama, LM Studio, vLLM, llama.cpp, etc.
-    Saved to the database, so it persists across restarts.
-  </p>
-  <div class="src-card">
-    <form id="llmForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-      <input id="llmUrl" type="url" required
-             style="flex:1 1 320px;min-width:0;background:var(--panel-2);color:var(--text);
-                    border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem"
-             placeholder="http://192.168.1.50:11434/v1">
-      <button type="submit">Save &amp; test</button>
-      <button type="button" id="llmReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Reset to default</button>
-    </form>
-    <div id="llmInfo" class="note" style="margin-top:.5rem"></div>
-  </div>
+  <!-- =================== DONATION SETTINGS =================== -->
+  <section class="settings-section active" id="section-donation">
+    <p class="section-intro">
+      Customize how donation values are calculated and review the references used.
+      These settings affect every new item you save.
+    </p>
 
-  <h2>Vision model</h2>
-  <p class="note" style="color:var(--muted);font-size:.9rem">
-    Pin a specific model on the endpoint above. Leave blank to auto-detect the
-    first vision-capable model on each request. Changes apply immediately.
-  </p>
-  <div class="src-card">
-    <form id="modelForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-      <select id="modelPicker"
-              style="flex:1 1 220px;min-width:0;background:var(--panel-2);color:var(--text);
-                     border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
-      </select>
-      <input id="modelCustom" type="text" placeholder="…or type a custom model name"
-             style="flex:1 1 220px;min-width:0;background:var(--panel-2);color:var(--text);
-                    border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
-      <button type="submit">Save &amp; test</button>
-      <button type="button" id="modelReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Auto-detect</button>
-    </form>
-    <div id="modelInfo" class="note" style="margin-top:.5rem"></div>
-  </div>
+    <h2>Donors</h2>
+    <p class="note" style="color:var(--muted);font-size:.9rem">
+      Add household members or recurring donors. Each item or cash gift can be tagged with a donor for per-person tax tracking.
+    </p>
+    <div class="src-card">
+      <form id="donorForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.75rem">
+        <input name="name" required placeholder="New donor name (e.g. Alice, Family)"
+               style="flex:1 1 240px;min-width:0;background:var(--panel-2);color:var(--text);
+                      border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
+        <button type="submit">Add donor</button>
+      </form>
+      <div id="donorList"></div>
+    </div>
 
-  <h2>Where the dollar amounts come from</h2>
-  <p id="methodology"></p>
+    <h2>Where the dollar amounts come from</h2>
+    <p id="methodology"></p>
 
-  <h2>Authoritative references</h2>
-  <div id="sources"></div>
+    <h2>Authoritative references</h2>
+    <div id="sources"></div>
 
   <h2>Full FMV table used by this app</h2>
   <p style="color: var(--muted); font-size: .9rem">
@@ -92,10 +150,40 @@
     "good used condition or better" — the standard IRS Publication 526 §A.2 sets
     for clothing and household items.
   </p>
+  <p style="color: var(--muted); font-size: .9rem">
+    <b>Edit any row</b> to override the bundled defaults — overrides are saved to your DB and apply on the next item you save. Customized rows are highlighted; click <b>Reset</b> to restore that category's defaults.
+  </p>
+  <div style="margin: .5rem 0 .75rem; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap">
+    <span id="overridesCount" class="note" style="color:var(--muted);font-size:.85rem"></span>
+    <button id="resetAllFmv" type="button"
+            style="background: transparent; color: var(--danger); border: 1px solid var(--danger);
+                   padding: .35rem .8rem; border-radius: 6px; font-size: .85rem; cursor: pointer">
+      Restore all defaults
+    </button>
+  </div>
   <table class="cat-table">
-    <thead><tr><th>Category</th><th class="num">Low (fair)</th><th class="num">Median (good)</th><th class="num">High (excellent)</th></tr></thead>
+    <thead><tr>
+      <th>Category</th>
+      <th class="num">Low (fair)</th>
+      <th class="num">Median (good)</th>
+      <th class="num">High (excellent)</th>
+      <th class="num"></th>
+    </tr></thead>
     <tbody id="catBody"></tbody>
   </table>
+
+  <h2>Export &amp; backup</h2>
+  <p class="note" style="color:var(--muted);font-size:.9rem">
+    Download a complete archive of your donation data — useful for tax season,
+    moving to a new machine, or just as a personal backup.
+  </p>
+  <div class="src-card">
+    <a href="/api/export" download class="export-link">⬇ Export ZIP (DB + CSV + photos)</a>
+    <p class="note" style="margin:.6rem 0 0;color:var(--muted);font-size:.85rem">
+      Contents: <code>donations.csv</code> (Excel-readable) · <code>cash_donations.csv</code> · <code>donations.db</code> (SQLite) · <code>images/</code> (every photo and receipt) · <code>README.txt</code>.
+      The CSV's <code>image_relpath</code> column points at the files inside the archive.
+    </p>
+  </div>
 
   <h2>What this tool is not</h2>
   <ul style="line-height:1.7;color:var(--muted)">
@@ -103,11 +191,126 @@
     <li>Not an appraisal. Single items or "groups of similar items" worth more than $5,000 require a qualified appraisal under Pub. 561 — this app cannot substitute for that.</li>
     <li>Not legal/tax advice. The values are good-faith estimates based on published guides; the taxpayer is responsible for the final FMV claimed.</li>
   </ul>
+  </section>
+  <!-- =================== /DONATION =================== -->
+
+
+  <!-- =================== TECHNICAL SETTINGS =================== -->
+  <section class="settings-section" id="section-technical">
+    <p class="section-intro">
+      App-level configuration: vision LLM connection, model selection, and
+      destructive operations like factory reset. Changes apply immediately.
+    </p>
+
+    <h2>Connection status</h2>
+    <div id="status" class="src-card">Checking…</div>
+
+    <h2>LLM endpoint</h2>
+    <p class="note" style="color:var(--muted);font-size:.9rem">
+      Any OpenAI-compatible <code>/v1</code> endpoint with vision support — Ollama, LM Studio, vLLM, llama.cpp, etc.
+      Saved to the database, so it persists across restarts.
+    </p>
+    <div class="src-card">
+      <form id="llmForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <input id="llmUrl" type="url" required
+               style="flex:1 1 320px;min-width:0;background:var(--panel-2);color:var(--text);
+                      border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem"
+               placeholder="http://192.168.1.50:11434/v1">
+        <button type="submit">Save &amp; test</button>
+        <button type="button" id="llmReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Reset to default</button>
+      </form>
+      <div id="llmInfo" class="note" style="margin-top:.5rem"></div>
+    </div>
+
+    <h2>Vision model</h2>
+    <p class="note" style="color:var(--muted);font-size:.9rem">
+      Pin a specific model on the endpoint above. Leave blank to auto-detect the
+      first vision-capable model on each request. Changes apply immediately.
+    </p>
+    <div class="src-card">
+      <form id="modelForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <select id="modelPicker"
+                style="flex:1 1 220px;min-width:0;background:var(--panel-2);color:var(--text);
+                       border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
+        </select>
+        <input id="modelCustom" type="text" placeholder="…or type a custom model name"
+               style="flex:1 1 220px;min-width:0;background:var(--panel-2);color:var(--text);
+                      border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
+        <button type="submit">Save &amp; test</button>
+        <button type="button" id="modelReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Auto-detect</button>
+      </form>
+      <div id="modelInfo" class="note" style="margin-top:.5rem"></div>
+    </div>
+
+    <h2>Factory reset</h2>
+    <p style="color:var(--muted);font-size:.9rem">
+      Wipe every item, drop-off, donor, cash gift, FMV override, setting, and
+      uploaded photo. Daily SQLite backups under <code>data/backups/</code> are
+      preserved as a safety net.
+    </p>
+    <div class="src-card" id="resetCard">
+      <p style="margin-top:0">To enable the button, type
+        <code id="resetPhraseShow"></code> exactly into the box below.</p>
+      <input id="resetPhraseInput" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Type the phrase to enable"
+             style="width:100%;background:var(--panel-2);color:var(--text);
+                    border:1px solid var(--border);border-radius:6px;
+                    padding:.5rem .65rem;font-size:.95rem;font-family:monospace">
+      <button id="factoryResetBtn" type="button" disabled
+              style="margin-top:.6rem;background:var(--danger);color:white;border:none;
+                     padding:.55rem 1rem;border-radius:6px;font-weight:700;cursor:pointer;
+                     opacity:.4">
+        ⚠ Wipe all my data
+      </button>
+      <div id="resetInfo" class="note" style="margin-top:.5rem"></div>
+    </div>
+
+    <h2>About</h2>
+    <div class="src-card">
+      <p style="margin-top:0">
+        <b>Donation Tracker</b> — a local-first, mobile-friendly app for tracking
+        non-cash and cash charitable donations for tax purposes. All data stays on
+        your machine.
+      </p>
+      <p>Built by <a href="https://github.com/guscatalano" target="_blank" rel="noopener">Gus Catalano</a>.
+         Source on <a href="https://github.com/guscatalano/DonationTracker" target="_blank" rel="noopener">GitHub</a>.
+         Issues, PRs, and forks welcome.</p>
+      <p class="note">
+        Pair-coded with <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener">Claude Code</a>
+        (Anthropic's Claude Opus 4.7), which wrote a lot of the routing,
+        vision pipeline, and UI.
+      </p>
+    </div>
+  </section>
+  <!-- =================== /TECHNICAL =================== -->
 </div>
 
 <script>
 function escape(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 const fmt = n => "$" + Number(n).toFixed(2);
+
+// Settings sub-nav (Donation / Technical) — persists last-used in localStorage.
+function setSettingsSection(name) {
+  document.querySelectorAll(".settings-tab").forEach(b =>
+    b.classList.toggle("active", b.dataset.section === name));
+  document.querySelectorAll(".settings-section").forEach(s =>
+    s.classList.toggle("active", s.id === `section-${name}`));
+  try { localStorage.setItem("dt.settingsSection", name); } catch {}
+  if (location.hash.replace(/^#/, "") !== name) {
+    history.replaceState(null, "", "#" + name);
+  }
+}
+document.querySelector(".settings-nav").addEventListener("click", e => {
+  const b = e.target.closest(".settings-tab");
+  if (b) setSettingsSection(b.dataset.section);
+});
+// Restore: URL hash wins, then localStorage, then default.
+let _initialSection = location.hash.replace(/^#/, "");
+if (!["donation","technical"].includes(_initialSection)) {
+  try { _initialSection = localStorage.getItem("dt.settingsSection"); } catch {}
+}
+if (!["donation","technical"].includes(_initialSection)) _initialSection = "donation";
+setSettingsSection(_initialSection);
 
 async function checkStatus() {
   const el = document.getElementById("status");
@@ -239,7 +442,69 @@ document.getElementById("modelReset").addEventListener("click", async () => {
 
 loadModelSettings();
 
-fetch("/api/sources").then(r => r.json()).then(d => {
+// ---- Donor management ----
+async function loadDonors() {
+  const r = await fetch("/api/donors");
+  const donors = await r.json();
+  const list = document.getElementById("donorList");
+  if (!donors.length) {
+    list.innerHTML = `<p class="note" style="color:var(--muted);margin:0">No donors yet. Add one above to start tagging items by giver.</p>`;
+    return;
+  }
+  list.innerHTML = donors.map(d => {
+    const parts = [];
+    if (d.item_count) parts.push(`${d.item_count} item${d.item_count===1?"":"s"} · ${fmt(d.items_value)}`);
+    if (d.cash_count) parts.push(`${d.cash_count} cash gift${d.cash_count===1?"":"s"} · ${fmt(d.cash_value)}`);
+    const breakdown = parts.length
+      ? parts.join("  •  ") + (parts.length > 1 ? `  •  <b>Total ${fmt(d.total_value)}</b>` : "")
+      : "No donations yet";
+    const initial = (d.name || "?").trim().charAt(0).toUpperCase();
+    return `
+      <div class="donor-list-row" data-id="${d.id}" data-name="${escape(d.name)}">
+        <div class="avatar">${escape(initial)}</div>
+        <div class="info">
+          <div class="name">${escape(d.name)}</div>
+          <div class="stats">${breakdown}</div>
+        </div>
+        <div class="actions">
+          <button type="button" class="rename">Rename</button>
+          <button type="button" class="del">Delete</button>
+        </div>
+      </div>`;
+  }).join("");
+  list.querySelectorAll(".donor-list-row").forEach(row => {
+    const id = Number(row.dataset.id);
+    const name = row.dataset.name;
+    row.querySelector(".rename").addEventListener("click", async () => {
+      const newName = prompt("New name", name);
+      if (!newName || newName === name) return;
+      const fd = new FormData(); fd.append("name", newName);
+      const r = await fetch(`/api/donors/${id}`, { method: "PATCH", body: fd });
+      if (!r.ok) { alert("Failed: " + await r.text()); return; }
+      loadDonors();
+    });
+    row.querySelector(".del").addEventListener("click", async () => {
+      if (!confirm(`Delete donor "${name}"? Items keep their record but lose the tag.`)) return;
+      const r = await fetch(`/api/donors/${id}`, { method: "DELETE" });
+      if (!r.ok) { alert("Failed: " + await r.text()); return; }
+      loadDonors();
+    });
+  });
+}
+
+document.getElementById("donorForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const r = await fetch("/api/donors", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  e.target.reset();
+  loadDonors();
+});
+loadDonors();
+
+async function loadSources() {
+  const r = await fetch("/api/sources");
+  const d = await r.json();
   document.getElementById("methodology").textContent = d.methodology;
   const srcs = Object.values(d.sources);
   document.getElementById("sources").innerHTML = srcs.map(s => `
@@ -251,7 +516,11 @@ fetch("/api/sources").then(r => r.json()).then(d => {
       <div class="note">${escape(s.note || "")}</div>
     </div>`).join("");
 
-  // Group categories by their key prefix for readability
+  document.getElementById("overridesCount").textContent =
+    d.overrides_count
+      ? `${d.overrides_count} categor${d.overrides_count===1?"y is":"ies are"} customized.`
+      : `Using bundled defaults — no customizations yet.`;
+
   const groups = {};
   for (const c of d.categories) {
     const g = c.key.split("_")[0];
@@ -266,17 +535,160 @@ fetch("/api/sources").then(r => r.json()).then(d => {
   };
   let html = "";
   for (const g of Object.keys(groups).sort()) {
-    html += `<tr class="group-row"><td colspan="4">${escape(labelFor[g] || g)}</td></tr>`;
+    html += `<tr class="group-row"><td colspan="5">${escape(labelFor[g] || g)}</td></tr>`;
     for (const c of groups[g]) {
-      html += `<tr>
-        <td>${escape(c.label)}</td>
-        <td class="num">${fmt(c.low)}</td>
-        <td class="num">${fmt(c.median)}</td>
-        <td class="num">${fmt(c.high)}</td>
-      </tr>`;
+      html += renderFmvRow(c, false);  // start in read-only mode
     }
   }
-  document.getElementById("catBody").innerHTML = html;
+  const body = document.getElementById("catBody");
+  body.innerHTML = html;
+  body.querySelectorAll("tr[data-key]").forEach(wireFmvRow);
+}
+
+function renderFmvRow(c, editing) {
+  const cls = c.is_overridden ? "overridden" : "";
+  const dataAttrs = `data-key="${escape(c.key)}"
+                     data-default-low="${c.default_low}"
+                     data-default-median="${c.default_median}"
+                     data-default-high="${c.default_high}"
+                     data-overridden="${c.is_overridden ? 1 : 0}"
+                     data-label="${escape(c.label)}"`;
+  const tag = c.is_overridden ? ' <span style="color:var(--accent);font-size:.7rem">●custom</span>' : "";
+  if (!editing) {
+    const tagB = c.is_overridden ? ' <span class="custom-tag">custom</span>' : "";
+    const cell = (cur, def) => {
+      const changed = c.is_overridden && Number(cur) !== Number(def);
+      return changed
+        ? `<span class="fmv-cell-changed">${fmt(cur)}</span><span class="fmv-was">${fmt(def)}</span>`
+        : fmt(cur);
+    };
+    return `<tr class="${cls}" ${dataAttrs}>
+      <td>${escape(c.label)}${tagB}</td>
+      <td class="num">${cell(c.low, c.default_low)}</td>
+      <td class="num">${cell(c.median, c.default_median)}</td>
+      <td class="num">${cell(c.high, c.default_high)}</td>
+      <td class="row-actions">
+        <button type="button" class="edit">Edit</button>
+        ${c.is_overridden ? `<button type="button" class="reset">Reset</button>` : ""}
+      </td>
+    </tr>`;
+  }
+  return `<tr class="${cls} editing" ${dataAttrs}>
+    <td>${escape(c.label)}${tag}</td>
+    <td class="num"><input class="fmv-cell" data-field="low" type="number" min="0" step="0.5" value="${c.low}"></td>
+    <td class="num"><input class="fmv-cell" data-field="median" type="number" min="0" step="0.5" value="${c.median}"></td>
+    <td class="num"><input class="fmv-cell" data-field="high" type="number" min="0" step="0.5" value="${c.high}"></td>
+    <td class="row-actions">
+      <button type="button" class="save" disabled>Save</button>
+      <button type="button" class="cancel">Cancel</button>
+    </td>
+  </tr>`;
+}
+
+function wireFmvRow(tr) {
+  const key = tr.dataset.key;
+  const isOverridden = tr.dataset.overridden === "1";
+  const editBtn = tr.querySelector("button.edit");
+  const resetBtn = tr.querySelector("button.reset");
+  const saveBtn = tr.querySelector("button.save");
+  const cancelBtn = tr.querySelector("button.cancel");
+  const inputs = tr.querySelectorAll("input.fmv-cell");
+
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      // Re-render this row in editing mode in place. Read the *current* (possibly
+      // overridden) value from the first text node of each numeric cell, since the
+      // rendered span may include a strikethrough "was $X" hint.
+      const cellNum = i => {
+        const el = tr.children[i].querySelector(".fmv-cell-changed") || tr.children[i];
+        return Number(el.textContent.replace(/[^\d.]/g,""));
+      };
+      const c = {
+        key, label: tr.dataset.label,
+        is_overridden: isOverridden,
+        low: cellNum(1), median: cellNum(2), high: cellNum(3),
+        default_low: Number(tr.dataset.defaultLow),
+        default_median: Number(tr.dataset.defaultMedian),
+        default_high: Number(tr.dataset.defaultHigh),
+      };
+      tr.outerHTML = renderFmvRow(c, true);
+      // The replacement node is a new tr; re-wire it.
+      document.querySelector(`tr[data-key="${CSS.escape(key)}"]`)
+              ?.let?.(t => wireFmvRow(t));
+      // CSS.escape compatibility — fall back to manual lookup.
+      const fresh = [...document.querySelectorAll("tr[data-key]")].find(x => x.dataset.key === key);
+      if (fresh) wireFmvRow(fresh);
+    });
+  }
+
+  if (resetBtn && isOverridden) {
+    resetBtn.addEventListener("click", async () => {
+      const r = await fetch(`/api/fmv/${encodeURIComponent(key)}`, { method: "DELETE" });
+      if (!r.ok) { alert("Reset failed: " + await r.text()); return; }
+      loadSources();
+    });
+  }
+
+  if (inputs.length) {
+    const initial = {};
+    inputs.forEach(i => { initial[i.dataset.field] = i.value; });
+    const refreshDirty = () => {
+      const dirty = [...inputs].some(i => i.value !== initial[i.dataset.field]);
+      tr.classList.toggle("dirty", dirty);
+      saveBtn.disabled = !dirty;
+    };
+    inputs.forEach(i => i.addEventListener("input", refreshDirty));
+
+    saveBtn.addEventListener("click", async () => {
+      const fd = new FormData();
+      inputs.forEach(i => fd.append(i.dataset.field, i.value));
+      const low = Number(fd.get("low")), med = Number(fd.get("median")), high = Number(fd.get("high"));
+      if (!(low <= med && med <= high)) { alert("Expected low ≤ median ≤ high"); return; }
+      saveBtn.disabled = true; saveBtn.textContent = "...";
+      const r = await fetch(`/api/fmv/${encodeURIComponent(key)}`, { method: "POST", body: fd });
+      if (!r.ok) { saveBtn.textContent = "Save"; alert("Save failed: " + await r.text()); return; }
+      loadSources();
+    });
+
+    cancelBtn.addEventListener("click", () => loadSources());
+  }
+}
+
+document.getElementById("resetAllFmv").addEventListener("click", async () => {
+  if (!confirm("Restore every category to its bundled default? This wipes all your customizations.")) return;
+  const r = await fetch("/api/fmv", { method: "DELETE" });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  loadSources();
+});
+
+loadSources();
+
+// ---- factory reset wiring ----
+const RESET_PHRASE = "DELETE EVERYTHING";
+document.getElementById("resetPhraseShow").textContent = RESET_PHRASE;
+const resetInput = document.getElementById("resetPhraseInput");
+const resetBtn = document.getElementById("factoryResetBtn");
+resetInput.addEventListener("input", () => {
+  const ok = resetInput.value === RESET_PHRASE;
+  resetBtn.disabled = !ok;
+  resetBtn.style.opacity = ok ? "1" : ".4";
+});
+resetBtn.addEventListener("click", async () => {
+  if (!confirm("Last chance — wipe everything?")) return;
+  const fd = new FormData(); fd.append("confirm", RESET_PHRASE);
+  const r = await fetch("/api/factory_reset", { method: "POST", body: fd });
+  const info = document.getElementById("resetInfo");
+  if (!r.ok) {
+    info.style.color = "var(--danger)";
+    info.textContent = "Failed: " + await r.text();
+    return;
+  }
+  const j = await r.json();
+  info.style.color = "var(--accent-2)";
+  info.textContent = `Wiped. ${j.removed_files} uploaded file(s) deleted. Reloading…`;
+  resetInput.value = "";
+  resetBtn.disabled = true; resetBtn.style.opacity = ".4";
+  setTimeout(() => location.href = "/", 1200);
 });
 </script>
 </body>

@@ -14,9 +14,8 @@
     <button class="tab" data-view="capture">Add</button>
     <button class="tab" data-view="items">Items</button>
     <button class="tab" data-view="events">Activity</button>
-    <button class="tab" data-view="donors">Donors</button>
     <a class="tab" href="/summary">Tax year</a>
-    <a class="tab" href="/sources" title="Where the dollar amounts come from">FAQ</a>
+    <a class="tab" href="/sources" title="App and donation settings">Settings</a>
   </nav>
 </header>
 
@@ -84,21 +83,8 @@
     <div id="itemList" class="card-grid"></div>
   </section>
 
-  <!-- DONORS -->
-  <section id="view-donors" class="view hidden">
-    <p class="hint" style="margin-top:0">Donors let you tag who gave each item. Useful for shared households or family donations.</p>
-    <form id="donorForm" class="inline-form">
-      <input name="name" required placeholder="New donor name (e.g. Alice, Family)">
-      <button type="submit">Add</button>
-    </form>
-    <div id="donorList"></div>
-  </section>
-
   <!-- EVENTS -->
   <section id="view-events" class="view hidden">
-    <div class="filter-row">
-      <a href="/api/export" class="export-btn" download>⬇ Export ZIP (DB + CSV + photos)</a>
-    </div>
     <h3 style="margin-top:0">Drop-offs (non-cash items)</h3>
     <details class="event-form">
       <summary>+ New drop-off</summary>

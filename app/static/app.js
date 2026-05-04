@@ -26,7 +26,6 @@ function showView(name) {
   }
   if (name === "items") loadItems();
   if (name === "events") { loadEvents(); loadCash(); }
-  if (name === "donors") loadDonors();
 }
 
 // ---------- Add-tab mode toggle: Item vs Cash ----------
@@ -95,54 +94,7 @@ $("#defaultDonor").addEventListener("change", () => {
   setDefaultDonorId($("#defaultDonor").value);
 });
 
-async function loadDonors() {
-  await loadDonorsAndSettings();
-  const list = $("#donorList");
-  list.innerHTML = DONORS.map(d => {
-    const parts = [];
-    if (d.item_count) parts.push(`${d.item_count} item${d.item_count===1?"":"s"} · ${fmt(d.items_value)}`);
-    if (d.cash_count) parts.push(`${d.cash_count} cash gift${d.cash_count===1?"":"s"} · ${fmt(d.cash_value)}`);
-    const breakdown = parts.length ? parts.join(" • ") : "No donations yet";
-    return `
-    <div class="donor-item" data-id="${d.id}">
-      <div>
-        <div class="name">${escapeHTML(d.name)}</div>
-        <div class="stats">${breakdown}</div>
-        ${parts.length > 1 ? `<div class="stats" style="margin-top:.15rem"><b style="color:var(--accent-2)">Total: ${fmt(d.total_value)}</b></div>` : ""}
-      </div>
-      <div style="display:flex;gap:.4rem">
-        <button class="rename">Rename</button>
-        <button class="danger del">Delete</button>
-      </div>
-    </div>`;
-  }).join("") ||
-    `<p class="hint">No donors yet. Add one above and pick it as the default on the Add tab.</p>`;
-  list.querySelectorAll(".donor-item").forEach(row => {
-    const id = Number(row.dataset.id);
-    row.querySelector(".rename").addEventListener("click", async () => {
-      const cur = DONORS.find(x => x.id === id);
-      const name = prompt("New name", cur ? cur.name : "");
-      if (!name) return;
-      const fd = new FormData(); fd.append("name", name);
-      await fetch(`/api/donors/${id}`, { method: "PATCH", body: fd });
-      loadDonors();
-    });
-    row.querySelector(".del").addEventListener("click", async () => {
-      if (!confirm("Delete this donor? Items keep their record but lose the tag.")) return;
-      await fetch(`/api/donors/${id}`, { method: "DELETE" });
-      loadDonors();
-    });
-  });
-}
-
-$("#donorForm").addEventListener("submit", async e => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const r = await fetch("/api/donors", { method: "POST", body: fd });
-  if (!r.ok) { alert("Failed: " + await r.text()); return; }
-  e.target.reset();
-  loadDonors();
-});
+// Donor management UI lives on the Settings page now.
 
 // ---------- cash donations ----------
 async function loadCash() {

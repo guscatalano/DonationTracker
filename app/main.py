@@ -22,10 +22,14 @@ def _apply_persisted_settings() -> None:
     with tx() as conn:
         url = conn.execute("SELECT value FROM settings WHERE key='llm_base_url'").fetchone()
         model = conn.execute("SELECT value FROM settings WHERE key='llm_model'").fetchone()
+        fmv_rows = conn.execute(
+            "SELECT category_key, low, median, high FROM fmv_overrides"
+        ).fetchall()
     if url and url["value"]:
         vision.set_base_url(url["value"])
     if model and model["value"]:
         vision.set_model_override(model["value"])
+    fmv.load_overrides([dict(r) for r in fmv_rows])
 _apply_persisted_settings()
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -244,9 +248,92 @@ def categories():
 @app.get("/api/sources")
 def sources():
     return {"sources": fmv.SOURCES, "methodology": fmv.METHODOLOGY,
-            "categories": [{"key": k, "label": v["label"], "low": v["low"],
-                            "median": v["median"], "high": v["high"]}
-                           for k, v in fmv.CATEGORIES.items()]}
+            "categories": fmv.category_options(),
+            "overrides_count": fmv.overrides_count()}
+
+
+@app.post("/api/fmv/{category_key}")
+async def upsert_fmv_override(
+    category_key: str,
+    low: float = Form(...),
+    median: float = Form(...),
+    high: float = Form(...),
+):
+    if category_key not in fmv.CATEGORIES:
+        raise HTTPException(404, f"unknown category: {category_key}")
+    if low < 0 or median < 0 or high < 0:
+        raise HTTPException(400, "values must be non-negative")
+    if not (low <= median <= high):
+        raise HTTPException(400, "expected low ≤ median ≤ high")
+    fmv.set_override(category_key, low, median, high)
+    with tx() as conn:
+        conn.execute(
+            "INSERT INTO fmv_overrides(category_key, low, median, high) "
+            "VALUES(?,?,?,?) "
+            "ON CONFLICT(category_key) DO UPDATE SET "
+            "low=excluded.low, median=excluded.median, high=excluded.high, "
+            "updated_at=datetime('now')",
+            (category_key, low, median, high),
+        )
+    return {"ok": True, "category_key": category_key,
+            "low": low, "median": median, "high": high, "is_overridden": True}
+
+
+@app.delete("/api/fmv/{category_key}")
+def reset_fmv_override(category_key: str):
+    """Revert a single category to the bundled default."""
+    if category_key not in fmv.CATEGORIES:
+        raise HTTPException(404, f"unknown category: {category_key}")
+    fmv.clear_override(category_key)
+    with tx() as conn:
+        conn.execute("DELETE FROM fmv_overrides WHERE category_key=?", (category_key,))
+    base = fmv.CATEGORIES[category_key]
+    return {"ok": True, "category_key": category_key,
+            "low": base["low"], "median": base["median"], "high": base["high"],
+            "is_overridden": False}
+
+
+@app.delete("/api/fmv")
+def reset_all_fmv_overrides():
+    """Wipe every user override and revert to bundled defaults."""
+    fmv.clear_all_overrides()
+    with tx() as conn:
+        cur = conn.execute("DELETE FROM fmv_overrides")
+        removed = cur.rowcount
+    return {"ok": True, "removed": removed}
+
+
+# ---- factory reset ----
+
+FACTORY_RESET_PHRASE = "DELETE EVERYTHING"
+
+
+@app.post("/api/factory_reset")
+async def factory_reset(confirm: str = Form(...)):
+    """Wipe all donor data: items, events, donors, cash, settings, FMV overrides,
+    and every uploaded file. Backups under data/backups/ are preserved.
+    Requires the exact confirmation phrase."""
+    if confirm.strip() != FACTORY_RESET_PHRASE:
+        raise HTTPException(400, f'must send confirm="{FACTORY_RESET_PHRASE}"')
+    with tx() as conn:
+        for table in ("items", "events", "donors", "cash_donations",
+                      "settings", "fmv_overrides"):
+            conn.execute(f"DELETE FROM {table}")
+        try:
+            conn.execute("DELETE FROM sqlite_sequence")
+        except Exception:
+            pass
+    # Wipe every uploaded photo / receipt
+    removed_files = 0
+    for p in UPLOAD_DIR.iterdir():
+        if p.is_file():
+            try: p.unlink(); removed_files += 1
+            except Exception: pass
+    # Reset in-memory state
+    fmv.clear_all_overrides()
+    vision.set_base_url(None)         # back to env default
+    vision.set_model_override(None)
+    return {"ok": True, "removed_files": removed_files}
 
 
 @app.get("/sources", response_class=FileResponse)
