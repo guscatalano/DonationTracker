@@ -47,6 +47,7 @@ if [ ! -f /etc/donationtracker.env ]; then
 fi
 
 echo "==> systemd unit"
+chmod +x "$INSTALL_DIR/deploy/run-systemd.sh"
 install -m 644 "$INSTALL_DIR/deploy/donationtracker.service" /etc/systemd/system/donationtracker.service
 systemctl daemon-reload
 systemctl enable --now donationtracker

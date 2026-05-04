@@ -7,6 +7,22 @@ if (-not (Test-Path .venv)) {
 $port = if ($env:PORT) { $env:PORT } else { "8000" }
 $args = @("-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", $port, "--reload")
 
+# Honor the persisted "https_enabled" setting if no env var is set.
+if (-not $env:USE_HTTPS) {
+    $dataDir = if ($env:DATA_DIR) { $env:DATA_DIR } else { ".\data" }
+    $dbFile = Join-Path $dataDir "donations.db"
+    if (Test-Path $dbFile) {
+        $persisted = & .\.venv\Scripts\python.exe -c "
+import sqlite3, os
+try:
+    c = sqlite3.connect(os.environ.get('DATA_DIR','./data') + '/donations.db')
+    r = c.execute(`"SELECT value FROM settings WHERE key='https_enabled'`").fetchone()
+    print(r[0] if r else '')
+except Exception: print('')"
+        if ($persisted -eq "1") { $env:USE_HTTPS = "1" }
+    }
+}
+
 if ($env:USE_HTTPS -eq "1" -or $env:USE_HTTPS -eq "true") {
     $keyFile = $env:SSL_KEY_FILE
     $certFile = $env:SSL_CERT_FILE

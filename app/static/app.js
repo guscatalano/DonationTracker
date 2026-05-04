@@ -342,7 +342,9 @@ async function pollPending() {
   const ids = [...PENDING];
   await Promise.all(ids.map(async id => {
     try {
-      const r = await fetch(`/api/items/${id}`);
+      // cache: 'no-store' is critical — without it, the browser may return
+      // the old status='analyzing' response and never realize the AI finished.
+      const r = await fetch(`/api/items/${id}`, { cache: "no-store" });
       if (!r.ok) return;
       const it = await r.json();
       RECENT.set(id, it);
@@ -357,7 +359,7 @@ async function pollPending() {
 // ---------- items list ----------
 async function loadItems() {
   const onlyUn = $("#onlyUnassigned").checked;
-  const r = await fetch("/api/items" + (onlyUn ? "?unassigned=true" : ""));
+  const r = await fetch("/api/items" + (onlyUn ? "?unassigned=true" : ""), { cache: "no-store" });
   const items = await r.json();
   const total = items.reduce((s, i) =>
     s + (i.status === "ready" ? (i.estimated_value || 0) * (i.quantity || 1) : 0), 0);
@@ -673,6 +675,10 @@ $$("[data-close]").forEach(b => b.addEventListener("click", closeModals));
 $$(".modal").forEach(m => m.addEventListener("click", e => {
   if (e.target === m) closeModals();
 }));
+// Esc-key dismisses any open modal — keyboard a11y.
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.querySelector(".modal:not(.hidden)")) closeModals();
+});
 
 // ---------- utils ----------
 function escapeHTML(s) {
@@ -682,6 +688,14 @@ function escapeHTML(s) {
 }
 
 // ---------- boot ----------
+// Custom app title from settings (server-side, shared across devices).
+fetch("/api/settings/app_title").then(r => r.json()).then(j => {
+  if (j && j.current) {
+    const el = document.getElementById("appTitle");
+    if (el) el.textContent = j.current;
+    document.title = j.current + " — Donation Tracker";
+  }
+}).catch(() => {});
 loadCategories();
 loadDonorsAndSettings();
 // Restore Add-tab mode (item vs cash) from last session

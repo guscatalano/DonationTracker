@@ -9,11 +9,11 @@
 </head>
 <body>
 <header class="topbar">
-  <h1>Donations</h1>
-  <nav>
-    <button class="tab" data-view="capture">Add</button>
-    <button class="tab" data-view="items">Items</button>
-    <button class="tab" data-view="events">Activity</button>
+  <h1 id="appTitle">Donations</h1>
+  <nav aria-label="Primary">
+    <button type="button" class="tab" data-view="capture">Add</button>
+    <button type="button" class="tab" data-view="items">Items</button>
+    <button type="button" class="tab" data-view="events">Activity</button>
     <a class="tab" href="/summary">Tax year</a>
     <a class="tab" href="/sources" title="App and donation settings">Settings</a>
   </nav>
@@ -26,7 +26,7 @@
       <label>Donating as
         <select id="defaultDonor"></select>
       </label>
-      <span class="hint">Saved on this device only — each phone picks its own.</span>
+      <span class="hint">Saved on this device only.</span>
     </div>
     <div class="seg-toggle" role="tablist">
       <button type="button" class="seg active" data-mode="item">📷 Item (photo)</button>
@@ -36,8 +36,8 @@
     <!-- Item mode -->
     <div id="addModeItem">
       <label class="capture-card">
-        <input id="captureInput" type="file" accept="image/*" capture="environment" multiple hidden>
-        <div class="capture-icon">+</div>
+        <input id="captureInput" type="file" accept="image/*" capture="environment" multiple hidden aria-label="Take or pick photos to add as donation items">
+        <div class="capture-icon" aria-hidden="true">+</div>
         <div class="capture-text">Take photo / pick image(s)</div>
         <div class="capture-sub">Snap as many as you want — descriptions fill in in the background.</div>
       </label>
@@ -51,7 +51,7 @@
       <form id="cashForm" class="event-form" style="padding:1rem">
         <label>Charity name<input name="charity_name" required placeholder="Red Cross, NPR, ..."></label>
         <div class="row">
-          <label>Amount ($)<input name="amount" type="number" min="0" step="0.01" required></label>
+          <label>Amount ($)<input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required></label>
           <label>Date<input name="donation_date" type="date" required></label>
         </div>
         <label>Method
@@ -112,9 +112,9 @@
 </main>
 
 <!-- ITEM EDIT MODAL -->
-<div id="itemModal" class="modal hidden">
+<div id="itemModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Edit item">
   <div class="modal-card">
-    <button class="close" data-close>&times;</button>
+    <button type="button" class="close" data-close aria-label="Close">&times;</button>
     <img id="modalImg" alt="">
     <div id="modalDate" class="hint" style="margin:.4rem 0"></div>
     <div id="analyzingBanner" class="banner hidden">
@@ -134,10 +134,10 @@
       </label>
       <label>Donor<select name="donor_id"></select></label>
       <div class="row">
-        <label>Quantity<input name="quantity" type="number" min="1" step="1" value="1"></label>
+        <label>Quantity<input name="quantity" type="number" min="1" step="1" value="1" inputmode="numeric"></label>
         <label>Value per unit ($)
-          <button type="button" id="valueBadge" class="value-badge auto" title="Click to switch between auto-calculated and manual override">auto · click to override</button>
-          <input name="estimated_value" type="number" min="0" step="0.01">
+          <button type="button" id="valueBadge" class="value-badge auto" aria-label="Toggle between automatic and manual value" title="Click to switch between auto-calculated and manual override">auto · click to override</button>
+          <input name="estimated_value" type="number" min="0" step="0.01" inputmode="decimal">
         </label>
       </div>
       <input type="hidden" name="value_overridden" value="false">
@@ -154,9 +154,9 @@
 </div>
 
 <!-- CASH EDIT MODAL -->
-<div id="cashEditModal" class="modal hidden">
+<div id="cashEditModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Edit cash gift">
   <div class="modal-card">
-    <button class="close" data-close>&times;</button>
+    <button type="button" class="close" data-close aria-label="Close">&times;</button>
     <h2 style="margin:0 0 .25rem">Edit cash gift</h2>
     <p class="hint" style="margin:0 0 1rem">Update any field, then Save. Receipt can be replaced or removed.</p>
     <form id="cashEditForm" class="event-form">
@@ -166,7 +166,7 @@
         <legend>Gift</legend>
         <label>Charity<input name="charity_name" required></label>
         <div class="row">
-          <label>Amount ($)<input name="amount" type="number" min="0" step="0.01" required></label>
+          <label>Amount ($)<input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required></label>
           <label>Date<input name="donation_date" type="date" required></label>
         </div>
         <div class="row">
@@ -207,9 +207,9 @@
 </div>
 
 <!-- EVENT DETAIL MODAL -->
-<div id="eventModal" class="modal hidden">
+<div id="eventModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="evTitle">
   <div class="modal-card wide">
-    <button class="close" data-close>&times;</button>
+    <button type="button" class="close" data-close aria-label="Close">&times;</button>
 
     <header class="ev-header">
       <h2 id="evTitle"></h2>

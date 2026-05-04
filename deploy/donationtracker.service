@@ -9,9 +9,9 @@ User=donationtracker
 Group=donationtracker
 WorkingDirectory=/opt/donationtracker
 EnvironmentFile=-/etc/donationtracker.env
-ExecStart=/opt/donationtracker/.venv/bin/python -m uvicorn app.main:app \
-    --host 0.0.0.0 \
-    --port ${PORT}
+# Wrapper script reads the DB-persisted "https_enabled" setting and
+# self-generates a cert if needed before exec-ing uvicorn with the right flags.
+ExecStart=/opt/donationtracker/deploy/run-systemd.sh
 Restart=on-failure
 RestartSec=5
 # Hardening

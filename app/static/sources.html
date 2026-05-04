@@ -121,6 +121,22 @@
       These settings affect every new item you save.
     </p>
 
+    <h2>App title</h2>
+    <p class="note" style="color:var(--muted);font-size:.9rem">
+      The text shown at the top of the app. Saved on the server, so all devices see the same title.
+    </p>
+    <div class="src-card">
+      <form id="titleForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <input id="appTitleInput" type="text" maxlength="100" placeholder="Donations"
+               style="flex:1 1 240px;min-width:0;background:var(--panel-2);color:var(--text);
+                      border:1px solid var(--border);border-radius:6px;padding:.5rem .65rem;font-size:.95rem">
+        <button type="submit">Save</button>
+        <button type="button" id="titleReset"
+                style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Reset</button>
+      </form>
+      <div id="titleInfo" class="note" style="margin-top:.5rem"></div>
+    </div>
+
     <h2>Donors</h2>
     <p class="note" style="color:var(--muted);font-size:.9rem">
       Add household members or recurring donors. Each item or cash gift can be tagged with a donor for per-person tax tracking.
@@ -240,6 +256,60 @@
         <button type="button" id="modelReset" style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">Auto-detect</button>
       </form>
       <div id="modelInfo" class="note" style="margin-top:.5rem"></div>
+    </div>
+
+    <h2>HTTPS / TLS</h2>
+    <p class="note" style="color:var(--muted);font-size:.9rem">
+      Serve the app over HTTPS so phones don't warn about an insecure connection
+      and the camera works without a hitch in iOS Safari. The first time, the app
+      generates a self-signed cert covering localhost + every detected LAN IP.
+      Browsers will warn the first visit — accept it.
+    </p>
+    <div id="sslStatus" class="src-card">Checking…</div>
+    <div class="src-card" style="margin-top:.5rem">
+      <form id="sslForm" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <label class="value-mode" style="font-size:.95rem">
+          <input type="checkbox" id="sslEnabled">
+          <span>Serve over HTTPS</span>
+        </label>
+        <button type="submit">Save preference</button>
+        <button type="button" id="sslRegen"
+                style="background:var(--panel-2);color:var(--muted);border:1px solid var(--border)">
+          Regenerate self-signed
+        </button>
+      </form>
+      <div id="sslInfo" class="note" style="margin-top:.5rem"></div>
+    </div>
+
+    <div class="src-card" style="margin-top:.5rem">
+      <p style="margin:0 0 .55rem"><b>Use your own certificate</b></p>
+      <p class="note" style="color:var(--muted);font-size:.85rem;margin:0 0 .65rem">
+        Skip the browser warning by uploading a real cert from
+        <a href="https://letsencrypt.org/" target="_blank" rel="noopener noreferrer">Let's Encrypt</a> or
+        <a href="https://github.com/FiloSottile/mkcert" target="_blank" rel="noopener noreferrer">mkcert</a>.
+        Both files must be PEM-encoded; the private key must match the certificate's public key.
+      </p>
+      <p class="note" style="color:var(--muted);font-size:.8rem;margin:0 0 .65rem">
+        <b>Or, do it from the shell:</b> drop <code>cert.pem</code> and <code>key.pem</code>
+        directly into the <code id="sslCertDir">data/certs/</code> directory and restart the server.
+        Auto-detected on next start.
+      </p>
+      <form id="sslUploadForm" style="display:flex;flex-direction:column;gap:.55rem">
+        <label style="font-size:.85rem;color:var(--muted)">Certificate (.pem / .crt)
+          <input type="file" name="cert" accept=".pem,.crt,.cer,application/x-x509-ca-cert,application/x-pem-file" required
+                 style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+                        border-radius:6px;padding:.5rem .65rem;font-size:.9rem">
+        </label>
+        <label style="font-size:.85rem;color:var(--muted)">Private key (.pem / .key)
+          <input type="file" name="key" accept=".pem,.key,application/x-pem-file" required
+                 style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+                        border-radius:6px;padding:.5rem .65rem;font-size:.9rem">
+        </label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <button type="submit">⤒ Upload &amp; install</button>
+          <span id="sslUploadInfo" class="note" style="color:var(--muted);font-size:.85rem"></span>
+        </div>
+      </form>
     </div>
 
     <h2>Factory reset</h2>
@@ -441,6 +511,31 @@ document.getElementById("modelReset").addEventListener("click", async () => {
 });
 
 loadModelSettings();
+
+// ---- App title editor ----
+async function loadAppTitle() {
+  const r = await fetch("/api/settings/app_title");
+  const j = await r.json();
+  document.getElementById("appTitleInput").value = j.current === j.default ? "" : (j.current || "");
+  document.getElementById("titleInfo").innerHTML = j.persisted
+    ? `Currently showing <code>${escape(j.persisted)}</code>. Default is <code>${escape(j.default)}</code>.`
+    : `Using the default: <code>${escape(j.default)}</code>.`;
+}
+document.getElementById("titleForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("title", document.getElementById("appTitleInput").value);
+  const r = await fetch("/api/settings/app_title", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  loadAppTitle();
+});
+document.getElementById("titleReset").addEventListener("click", async () => {
+  const fd = new FormData(); fd.append("title", "");
+  const r = await fetch("/api/settings/app_title", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  loadAppTitle();
+});
+loadAppTitle();
 
 // ---- Donor management ----
 async function loadDonors() {
@@ -662,6 +757,74 @@ document.getElementById("resetAllFmv").addEventListener("click", async () => {
 });
 
 loadSources();
+
+// ---- SSL / HTTPS ----
+async function loadSslStatus() {
+  const r = await fetch("/api/settings/ssl");
+  const j = await r.json();
+  document.getElementById("sslEnabled").checked = j.https_enabled_setting;
+  const expires = j.cert_not_after ? new Date(j.cert_not_after).toLocaleDateString() : "—";
+  const sans = (j.cert_sans || []).join(", ") || "—";
+  // Surface the actual directory path so users know where to drop files.
+  const dirEl = document.getElementById("sslCertDir");
+  if (dirEl && j.cert_path) {
+    const dir = j.cert_path.replace(/[\\/][^\\/]+$/, "");
+    dirEl.textContent = dir + "/";
+  }
+  const certKind = j.ssl_custom
+    ? '<b style="color:var(--accent)">user-supplied</b>'
+    : '<b style="color:var(--muted)">self-signed</b>';
+  document.getElementById("sslStatus").innerHTML = `
+    <div class="row"><span class="label">This request</span>
+      <span class="${j.https_active?'ok':'err'}">${j.https_active?'✓ HTTPS':'✗ HTTP'}</span></div>
+    <div class="row"><span class="label">Saved preference</span>
+      <span>${j.https_enabled_setting?'<b style="color:var(--accent-2)">enabled</b>':'<b style="color:var(--muted)">disabled</b>'}</span></div>
+    <div class="row"><span class="label">Cert kind</span><span>${certKind}</span></div>
+    <div class="row"><span class="label">Cert file</span><span><code style="font-size:.8rem">${escape(j.cert_path)}</code></span></div>
+    <div class="row"><span class="label">Cert exists</span><span>${j.cert_exists?'yes':'no'}</span></div>
+    <div class="row"><span class="label">Cert expires</span><span>${expires}</span></div>
+    <div class="row"><span class="label">Covers</span><span style="font-size:.8rem">${escape(sans)}</span></div>`;
+  document.getElementById("sslInfo").innerHTML = j.https_enabled_setting !== j.https_active
+    ? `<span style="color:var(--danger)">⚠ Saved preference doesn't match what's running.</span> Restart the server to apply (<code>systemctl restart donationtracker</code>).`
+    : "";
+}
+document.getElementById("sslForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("enabled", document.getElementById("sslEnabled").checked ? "true" : "false");
+  const r = await fetch("/api/settings/ssl", { method: "POST", body: fd });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  const j = await r.json();
+  alert(j.note || "Saved.");
+  loadSslStatus();
+});
+document.getElementById("sslRegen").addEventListener("click", async () => {
+  if (!confirm("Regenerate the self-signed cert? This also discards any user-supplied cert. Browsers/phones that trusted the old one will warn again.")) return;
+  const r = await fetch("/api/settings/ssl/regenerate", { method: "POST" });
+  if (!r.ok) { alert("Failed: " + await r.text()); return; }
+  const j = await r.json();
+  alert(j.note || "Cert regenerated.");
+  loadSslStatus();
+});
+document.getElementById("sslUploadForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const info = document.getElementById("sslUploadInfo");
+  info.style.color = "var(--muted)";
+  info.textContent = "Uploading…";
+  const r = await fetch("/api/settings/ssl/upload", { method: "POST", body: fd });
+  if (!r.ok) {
+    info.style.color = "var(--danger)";
+    info.textContent = "Failed: " + await r.text();
+    return;
+  }
+  const j = await r.json();
+  info.style.color = "var(--accent-2)";
+  info.textContent = j.note || "Installed.";
+  e.target.reset();
+  loadSslStatus();
+});
+loadSslStatus();
 
 // ---- factory reset wiring ----
 const RESET_PHRASE = "DELETE EVERYTHING";

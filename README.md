@@ -48,11 +48,31 @@ LLM_BASE_URL=http://192.168.1.50:11434/v1 python -m uvicorn app.main:app --host 
 
 ## Hosting it for real
 
-If you have an always-on machine, deploy properly:
+### Run as a Linux service that starts on boot
 
-- **Proxmox / any Linux server:** see [`deploy/PROXMOX.md`](deploy/PROXMOX.md). Spin up a Debian 12 LXC, run `bash deploy/install.sh`, edit `/etc/donationtracker.env`. The script creates a non-root user, builds the venv, installs a hardened systemd unit, and prints the LAN URL when done.
-- **Any other Linux box:** the same `install.sh` works on a vanilla Debian/Ubuntu host.
-- **Windows desktop:** Task Scheduler trigger "At log on" running `run.ps1`.
+On any systemd-based Linux (Debian, Ubuntu, Fedora, Proxmox LXC, Raspberry Pi OS, etc.) — three commands:
+
+```bash
+sudo apt update && sudo apt install -y git python3 python3-venv
+git clone https://github.com/guscatalano/DonationTracker.git /tmp/dt
+sudo bash /tmp/dt/deploy/install.sh
+```
+
+That single script:
+
+- Creates a non-login `donationtracker` system user.
+- Clones the repo into `/opt/donationtracker`, builds a venv, installs deps.
+- Drops a hardened systemd unit at `/etc/systemd/system/donationtracker.service`.
+- Runs `systemctl enable --now donationtracker` — **starts the app immediately AND every time the machine boots.**
+- Writes `/etc/donationtracker.env` from the example so you can point at your LLM later.
+- Prints the LAN URL when done.
+
+After install, edit `/etc/donationtracker.env` (set `LLM_BASE_URL`) and `sudo systemctl restart donationtracker`. Logs: `journalctl -u donationtracker -f`. Update: `cd /opt/donationtracker && sudo -u donationtracker git pull && sudo -u donationtracker .venv/bin/pip install -r requirements.txt && sudo systemctl restart donationtracker`.
+
+### Other options
+
+- **Proxmox LXC walkthrough:** [`deploy/PROXMOX.md`](deploy/PROXMOX.md) — recommended for home labs (lightest, fastest, weekly snapshots).
+- **Windows desktop autostart:** Task Scheduler trigger "At log on" running `run.ps1`.
 - **Reach it off-LAN:** install [Tailscale](https://tailscale.com) on the host and your phones — no port forwarding, no public exposure.
 
 ## Configuration

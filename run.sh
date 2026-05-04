@@ -8,6 +8,18 @@ fi
 PORT="${PORT:-8000}"
 ARGS=(-m uvicorn app.main:app --host 0.0.0.0 --port "$PORT")
 
+# Honor the persisted setting saved through the Settings UI, if no env var is set.
+if [ -z "${USE_HTTPS:-}" ] && [ -f "${DATA_DIR:-./data}/donations.db" ]; then
+    PERSISTED=$(.venv/bin/python -c "
+import sqlite3, os
+try:
+    c = sqlite3.connect(os.environ.get('DATA_DIR','./data') + '/donations.db')
+    r = c.execute(\"SELECT value FROM settings WHERE key='https_enabled'\").fetchone()
+    print(r[0] if r else '')
+except Exception: print('')" 2>/dev/null)
+    if [ "$PERSISTED" = "1" ]; then USE_HTTPS=1; fi
+fi
+
 if [ "${USE_HTTPS:-}" = "1" ] || [ "${USE_HTTPS:-}" = "true" ]; then
     KEY="${SSL_KEY_FILE:-}"
     CRT="${SSL_CERT_FILE:-}"

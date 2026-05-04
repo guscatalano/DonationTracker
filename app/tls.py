@@ -86,6 +86,29 @@ def ensure_cert(key_path: Path = KEY_PATH, cert_path: Path = CERT_PATH) -> tuple
     return key_path, cert_path
 
 
+# Marker the self-signed cert puts in its Organization Name field. If the cert
+# at CERT_PATH lacks this, it must have come from somewhere else (Let's Encrypt,
+# mkcert, hand-placed PEM, etc.) — treat it as user-supplied.
+SELF_SIGNED_ORG_MARKER = "Donation Tracker (self-signed)"
+
+
+def is_self_signed_by_us(cert_path: Path = CERT_PATH) -> bool | None:
+    """True if the cert was made by our generator, False if it came from
+    elsewhere, None if there's no cert or we couldn't parse it."""
+    if not cert_path.exists():
+        return None
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+        for attr in cert.subject.get_attributes_for_oid(NameOID.ORGANIZATION_NAME):
+            if SELF_SIGNED_ORG_MARKER in (attr.value or ""):
+                return True
+        return False
+    except Exception:
+        return None
+
+
 if __name__ == "__main__":
     import sys
     if "--ensure" in sys.argv:
