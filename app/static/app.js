@@ -232,7 +232,9 @@ $("#captureInput").addEventListener("change", async e => {
   status.textContent = files.length === 1
     ? "Uploading…"
     : `Uploading ${files.length} photos…`;
-  const donorId = $("#defaultDonor").value;
+  // Fall back to localStorage if the dropdown hasn't been populated yet
+  // (donors fetch may not have resolved before the user snaps a photo).
+  const donorId = $("#defaultDonor").value || getDefaultDonorId();
 
   // Fire all uploads in parallel; each returns immediately with status='analyzing'
   let okCount = 0, failCount = 0;
