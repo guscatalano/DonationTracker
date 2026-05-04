@@ -51,7 +51,10 @@ id -u "$USER_NAME" >/dev/null 2>&1 || \
 
 echo "==> code at $INSTALL_DIR"
 if [ -d "$INSTALL_DIR/.git" ]; then
-    git -C "$INSTALL_DIR" pull --ff-only
+    # Re-assert ownership in case a previous run was interrupted, then pull as
+    # the owning user (git refuses to operate on a repo owned by someone else).
+    chown -R "$USER_NAME:$USER_NAME" "$INSTALL_DIR"
+    as_user "$USER_NAME" git -C "$INSTALL_DIR" pull --ff-only
 else
     if [ ! -d "$INSTALL_DIR" ]; then
         git clone "$REPO_URL" "$INSTALL_DIR"
