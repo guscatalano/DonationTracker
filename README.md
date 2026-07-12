@@ -142,6 +142,28 @@ The values are good-faith estimates that fall within the published Salvation Arm
 - **Not an appraisal.** Single items or "groups of similar items" worth more than $5,000 require a qualified appraisal under Pub. 561 — this app is not sufficient for that case.
 - **Not multi-tenant or auth-protected.** Designed for a trusted home network. Don't expose it to the public internet without putting auth (e.g. a Cloudflare Tunnel or reverse-proxy basic auth) in front of it.
 
+## Security notes
+
+DonationTracker is designed for a single trusted user on a trusted network. It
+holds personal and financial data (donor names, charity names/addresses, dollar
+amounts, receipt and item photos), so keep these in mind:
+
+- **No authentication.** The web app has no login. Anyone who can reach its port
+  can view, edit, and export every record. The quick-start and `run.sh` bind to
+  all interfaces (`0.0.0.0`) — set the host to `127.0.0.1` if you only need local
+  access, and never expose it to the public internet without putting auth in
+  front of it (e.g. a reverse proxy with basic auth, or a Tailscale tunnel).
+- **Data is stored unencrypted at rest.** The SQLite DB and uploaded photos live
+  under `DATA_DIR` (default `./data`), along with daily backups and any **Export
+  ZIP** you generate. Protect that directory with filesystem permissions and/or
+  full-disk encryption, and treat exports as sensitive. `USE_HTTPS` encrypts the
+  connection but is not access control.
+- **Item photos and AI.** Item photos are sent to `LLM_BASE_URL` for
+  categorization. Keep this pointed at a local model (the default is Ollama on
+  `localhost`) if you don't want images leaving your machine. Receipt images are
+  never sent.
+- **No telemetry.** The app collects no analytics and phones nothing home.
+
 ## Stack
 
 - Python + FastAPI + SQLite — single binary equivalent, runs on any Linux/Mac/Windows host.
